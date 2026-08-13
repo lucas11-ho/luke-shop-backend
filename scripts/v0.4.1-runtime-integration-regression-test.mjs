@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const read=(f)=>readFileSync(f,'utf8');
+const pkg=JSON.parse(read('package.json'));
+const tests=[]; const test=(n,f)=>tests.push([n,f]);
+test('package version carries v0.4.1 runtime repair forward',()=>assert.ok(['0.4.1','0.4.2','0.5.0','0.6.0','0.7.0','0.7.1','0.8.0','0.9.0'].includes(pkg.version)));
+test('runtime release marker carries v0.4.1 repair forward',()=>assert.ok(/(?:0\.4\.[12]|0\.5\.0|0\.6\.0|0\.7\.[01]|0\.8\.0|0\.9\.0)-/.test(read('src/config.js'))));
+test('storefront payment route uses requireTenant',()=>assert.ok(read('src/modules/commerce/customer-routes.js').includes("payment-methods',{preHandler:[app.requireTenant]")));
+test('storefront delivery route uses requireTenant',()=>assert.ok(read('src/modules/commerce/customer-routes.js').includes("delivery-methods',{preHandler:[app.requireTenant]")));
+test('undefined requirePublicTenant hook is absent',()=>assert.equal(read('src/modules/commerce/customer-routes.js').includes('requirePublicTenant'),false));
+test('inventory adjustment locks only inventory_items row',()=>assert.ok(read('src/modules/inventory/merchant-routes.js').includes("i.status='ACTIVE' FOR UPDATE OF i")));
+test('inventory adjustment still separately locks inventory balance',()=>assert.ok(read('src/modules/inventory/merchant-routes.js').includes('inventory_item_id=$3 AND location_id=$4 FOR UPDATE')));
+test('customer auth parses bearer before JWT verification catch',()=>assert.ok(read('src/plugins/auth.js').includes("requireCustomerAuth(request) {\n    const token = bearer(request);")));
+test('merchant auth parses bearer before JWT verification catch',()=>assert.ok(read('src/plugins/auth.js').includes("requireMerchantAuth(request) {\n    const token = bearer(request);")));
+test('invalid JWT still maps to ACCESS_TOKEN_INVALID',()=>assert.ok(read('src/plugins/auth.js').includes("errors.unauthorized('ACCESS_TOKEN_INVALID'")));
+test('HTTP runtime test expects missing auth UNAUTHORIZED',()=>assert.ok(read('scripts/http-semantics-test.mjs').includes("error.code, 'UNAUTHORIZED'")));
+test('migration 004 remains present',()=>assert.ok(read('migrations/004_payments_delivery_promotions_foundation.sql').length>0));
+test('migration 005 is not introduced by runtime hotfix',()=>{try{read('migrations/005_runtime_integration_stabilization.sql');assert.fail('unexpected migration 005')}catch(e){if(e.code!=='ENOENT') throw e;}});
+let passed=0;for(const [n,f] of tests){try{f();passed++;console.log(`PASS ${n}`);}catch(e){console.error(`FAIL ${n}`);throw e;}}
+console.log(`${passed}/${tests.length} Luke Shop Backend v0.4.1 runtime integration checks passed`);

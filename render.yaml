@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: luke-shop-backend
+    runtime: docker
+    healthCheckPath: /health/ready
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4100
+      - key: TRUST_PROXY
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: SERVICE_CREDENTIAL_PEPPER
+        generateValue: true
+      - key: CS_CONTEXT_SIGNING_SECRET
+        generateValue: true
+      - key: CS_SERVICE_SIGNING_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false

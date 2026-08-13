@@ -1,0 +1,71 @@
+name: Luke Shop Backend CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  source-and-database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: luke_shop_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d luke_shop_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund --registry=https://registry.npmjs.org/
+          else
+            npm install --no-audit --no-fund --registry=https://registry.npmjs.org/
+          fi
+      - run: npm run verify
+      - name: v0.4.1 runtime integration source guard
+        run: npm run test:runtime:source
+      - name: HTTP error semantics runtime
+        run: npm run test:http
+      - name: Configure CI environment
+        run: |
+          cat > .env.ci <<'EOF'
+          NODE_ENV=test
+          DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/luke_shop_ci
+          JWT_ACCESS_SECRET=ci-only-access-secret-not-for-production-abcdefghijklmnopqrstuvwxyz0123456789
+          SERVICE_CREDENTIAL_PEPPER=ci-only-service-pepper-not-for-production-abcdefghijklmnopqrstuvwxyz0123456789
+          CS_CONTEXT_SIGNING_SECRET=ci-only-context-signing-secret-not-for-production-abcdefghijklmnopqrstuvwxyz0123456789
+          CS_SERVICE_SIGNING_SECRET=ci-only-service-signing-secret-not-for-production-9876543210zyxwvutsrqponmlkjihgfedcba
+          CORS_ORIGINS=http://localhost:5173
+          EOF
+      - name: Migrate disposable PostgreSQL
+        run: node --env-file=.env.ci src/db/migrate.js
+      - name: PostgreSQL tenant-isolation smoke test
+        run: npm run test:db
+      - name: Authentication lifecycle
+        run: npm run test:auth-db
+      - name: Catalog and inventory lifecycle
+        run: npm run test:catalog-db
+      - name: Cart checkout and orders lifecycle
+        run: npm run test:orders-db
+      - name: Payments delivery and promotions lifecycle
+        run: npm run test:commerce-db
+      - name: Luke CS Commerce Connector lifecycle
+        run: npm run test:cs-connector-db
+      - name: Merchant staff and RBAC lifecycle
+        run: npm run test:staff-rbac-db
+      - name: v0.1.1 authentication reliability source guard
+        run: node scripts/v0.1.1-auth-reliability-regression-test.mjs
+      - name: Dependency audit
+        run: npm audit --audit-level=high --registry=https://registry.npmjs.org/
