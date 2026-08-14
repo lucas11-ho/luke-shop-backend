@@ -1,6 +1,8 @@
 export const PERMISSIONS = Object.freeze({
   TENANT_SETTINGS_READ: 'tenant.settings.read',
   TENANT_SETTINGS_WRITE: 'tenant.settings.write',
+  STORES_READ: 'stores.read',
+  STORES_MANAGE: 'stores.manage',
   CUSTOMERS_READ: 'customers.read',
   CUSTOMERS_STATUS_MANAGE: 'customers.status.manage',
   CATALOG_READ: 'catalog.read',

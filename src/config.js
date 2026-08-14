@@ -38,7 +38,7 @@ export function loadConfig() {
     .filter(Boolean);
 
   const config = {
-    release: '0.10.0-store-designer-v3',
+    release: '0.11.0-operations-control-completion',
     nodeEnv,
     production,
     host: process.env.HOST?.trim() || '0.0.0.0',

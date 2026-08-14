@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
 
-const read = (p) => readFileSync(p, 'utf8');
-const sha256 = (p) => createHash('sha256').update(readFileSync(p)).digest('hex');
+const read = (p) => readFileSync(p, 'utf8').replace(/\r\n?/g, '\n');
+const normalizedTextBytes = (p) => Buffer.from(readFileSync(p, 'utf8').replace(/\r\n?/g, '\n'), 'utf8');
+const sha256 = (p) => createHash('sha256').update(normalizedTextBytes(p)).digest('hex');
 const tests = [];
 function test(name, fn) { tests.push([name, fn]); }
 
@@ -40,17 +41,17 @@ const merchantAccess = read('src/modules/merchant/access-routes.js');
 const merchantAccessService = read('src/modules/merchant/access-service.js');
 
 // The foundation migration is immutable across the catalog release.
-test('release remains compatible through v0.9.0', () => assert.ok(['0.9.0','0.10.0'].includes(pkg.version)));
+test('release remains compatible through v0.9.0', () => assert.ok(['0.9.0','0.10.0','0.11.0'].includes(pkg.version)));
 test('Node 24+ is required', () => assert.match(pkg.engines.node, />=24/));
 test('Fastify v5 is pinned', () => assert.match(pkg.dependencies.fastify, /^5\./));
-test('migration 001 exists and is immutable', () => {
+test('migration 001 normalized content is immutable', () => {
   assert.ok(existsSync('migrations/001_multi_tenant_commerce_foundation.sql'));
   assert.equal(sha256('migrations/001_multi_tenant_commerce_foundation.sql'), '409325e42984e3d495a8af9b411cd3f01da610bef7cf6e2ce99bad563ccb2e19');
 });
-test('migration 002 exists and is immutable', () => { assert.ok(existsSync('migrations/002_catalog_inventory_foundation.sql')); assert.equal(sha256('migrations/002_catalog_inventory_foundation.sql'), '9199f9ff88a6aec27ef07cfa4e691133ffa8cd60376c8bba2afe6f4dfc150c97'); });
-test('migration 003 exists and is immutable', () => { assert.ok(existsSync('migrations/003_cart_checkout_orders_foundation.sql')); assert.equal(sha256('migrations/003_cart_checkout_orders_foundation.sql'), '5eb19b228976135dff6dd17c1cee60e48b8388f1b6b9960a498f1b3c29fa73ed'); });
-test('migration 004 exists and is immutable', () => { assert.ok(existsSync('migrations/004_payments_delivery_promotions_foundation.sql')); assert.equal(sha256('migrations/004_payments_delivery_promotions_foundation.sql'), 'd471cada84320666ee496ac1b725b38c87dec1d0b1d7a48b6d138a8b03abdf42'); });
-test('migration 005 exists and is immutable', () => { assert.ok(existsSync('migrations/005_cs_commerce_connector_foundation.sql')); assert.equal(sha256('migrations/005_cs_commerce_connector_foundation.sql'), 'd30daf81749c2585660a7edcd3c5a12dac9fa82f051d85c6bdc1a49ce411fdcf'); });
+test('migration 002 normalized content is immutable', () => { assert.ok(existsSync('migrations/002_catalog_inventory_foundation.sql')); assert.equal(sha256('migrations/002_catalog_inventory_foundation.sql'), '9199f9ff88a6aec27ef07cfa4e691133ffa8cd60376c8bba2afe6f4dfc150c97'); });
+test('migration 003 normalized content is immutable', () => { assert.ok(existsSync('migrations/003_cart_checkout_orders_foundation.sql')); assert.equal(sha256('migrations/003_cart_checkout_orders_foundation.sql'), '5eb19b228976135dff6dd17c1cee60e48b8388f1b6b9960a498f1b3c29fa73ed'); });
+test('migration 004 normalized content is immutable', () => { assert.ok(existsSync('migrations/004_payments_delivery_promotions_foundation.sql')); assert.equal(sha256('migrations/004_payments_delivery_promotions_foundation.sql'), 'd471cada84320666ee496ac1b725b38c87dec1d0b1d7a48b6d138a8b03abdf42'); });
+test('migration 005 normalized content is immutable', () => { assert.ok(existsSync('migrations/005_cs_commerce_connector_foundation.sql')); assert.equal(sha256('migrations/005_cs_commerce_connector_foundation.sql'), 'd30daf81749c2585660a7edcd3c5a12dac9fa82f051d85c6bdc1a49ce411fdcf'); });
 test('migration 006 exists', () => assert.ok(existsSync('migrations/006_merchant_staff_rbac_management.sql')));
 for (const table of ['tenants','tenant_settings','stores','customers','customer_sessions','merchant_users','merchant_roles','merchant_sessions','integration_clients','customer_service_access_logs','audit_logs']) {
   test(`migration 001 creates ${table}`, () => assert.match(migration1, new RegExp(`CREATE TABLE ${table}\\b`)));
@@ -206,4 +207,4 @@ for (const [name, fn] of tests) {
   try { fn(); passed += 1; console.log(`PASS ${name}`); }
   catch (error) { console.error(`FAIL ${name}`); throw error; }
 }
-console.log(`${passed}/${tests.length} Luke Shop Backend v0.10.0 source regression checks passed`);
+console.log(`${passed}/${tests.length} Luke Shop Backend v0.11.0 source regression checks passed`);

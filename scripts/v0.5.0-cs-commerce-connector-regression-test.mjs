@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-const read=(p)=>readFileSync(p,'utf8'); const sha=(p)=>createHash('sha256').update(readFileSync(p)).digest('hex');
+const read=(p)=>readFileSync(p,'utf8').replace(/\r\n?/g,'\n'); const sha=(p)=>createHash('sha256').update(readFileSync(p,'utf8').replace(/\r\n?/g,'\n')).digest('hex');
 const tests=[]; const test=(n,f)=>tests.push([n,f]);
 const pkg=JSON.parse(read('package.json')); const migration=read('migrations/005_cs_commerce_connector_foundation.sql');
 const auth=read('src/modules/integrations/customer-service/service-auth.js'); const policy=read('src/modules/integrations/customer-service/policy.js');
@@ -9,14 +9,14 @@ const ctx=read('src/modules/integrations/customer-service/context.js'); const ct
 const tools=read('src/modules/integrations/customer-service/tool-routes.js'); const merchant=read('src/modules/integrations/customer-service/merchant-routes.js');
 const service=read('src/modules/integrations/customer-service/service-routes.js'); const tokens=read('src/core/tokens.js'); const config=read('src/config.js'); const app=read('src/app.js');
 
-test('package version carries v0.5.0 connector forward',()=>assert.ok(['0.5.0','0.6.0','0.7.0','0.7.1','0.8.0','0.9.0','0.10.0'].includes(pkg.version)));
-test('runtime release carries v0.5.0 connector forward',()=>assert.match(config,/(0\.5\.0-luke-cs-commerce-connector-ai-tool-gateway|0\.6\.0-merchant-staff-rbac-management|0\.7\.0-platform-control-plane-storefront-experience|0\.7\.1-multi-tenant-storefront-routing|0\.8\.0-media-asset-library|0\.9\.0-experience-commerce-workflow|0\.10\.0-store-designer-v3)/));
+test('package version carries v0.5.0 connector forward',()=>assert.ok(['0.5.0','0.6.0','0.7.0','0.7.1','0.8.0','0.9.0','0.10.0','0.11.0'].includes(pkg.version)));
+test('runtime release carries v0.5.0 connector forward',()=>assert.match(config,/(0\.5\.0-luke-cs-commerce-connector-ai-tool-gateway|0\.6\.0-merchant-staff-rbac-management|0\.7\.0-platform-control-plane-storefront-experience|0\.7\.1-multi-tenant-storefront-routing|0\.8\.0-media-asset-library|0\.9\.0-experience-commerce-workflow|0\.10\.0-store-designer-v3|0\.11\.0-operations-control-completion)/));
 for(const [file,hash] of Object.entries({
  'migrations/001_multi_tenant_commerce_foundation.sql':'409325e42984e3d495a8af9b411cd3f01da610bef7cf6e2ce99bad563ccb2e19',
  'migrations/002_catalog_inventory_foundation.sql':'9199f9ff88a6aec27ef07cfa4e691133ffa8cd60376c8bba2afe6f4dfc150c97',
  'migrations/003_cart_checkout_orders_foundation.sql':'5eb19b228976135dff6dd17c1cee60e48b8388f1b6b9960a498f1b3c29fa73ed',
  'migrations/004_payments_delivery_promotions_foundation.sql':'d471cada84320666ee496ac1b725b38c87dec1d0b1d7a48b6d138a8b03abdf42',
-})) test(`${file.split('/').pop()} remains immutable`,()=>assert.equal(sha(file),hash));
+})) test(`${file.split('/').pop()} normalized content remains immutable`,()=>assert.equal(sha(file),hash));
 for(const table of ['customer_service_policies','customer_service_contexts','customer_service_request_nonces','customer_service_tool_calls']) test(`005 creates ${table}`,()=>assert.match(migration,new RegExp(`CREATE TABLE ${table}\\b`)));
 test('005 gives integration clients explicit STAFF or AI usage mode',()=>{assert.match(migration,/ADD COLUMN usage_mode/);assert.match(migration,/'STAFF','AI'/);});
 test('existing integration clients remain STAFF by default',()=>assert.match(migration,/DEFAULT 'STAFF'/));

@@ -17,6 +17,22 @@ export async function merchantInventoryRoutes(app){
 
   app.get('/v1/merchant/inventory/locations',{preHandler:[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.INVENTORY_READ)]},async(request)=>{const store=await resolveStore(app.db,request.auth.tenantId,storeHeader(request),{requireActive:false});const result=await app.db.query('SELECT public_id,code,name,status,is_default,created_at,updated_at FROM inventory_locations WHERE tenant_id=$1 AND store_id=$2 ORDER BY is_default DESC,name',[request.auth.tenantId,store.id]);return {data:{store:{id:store.public_id,name:store.name},locations:result.rows}};});
 
+
+  app.patch('/v1/merchant/inventory/locations/:locationId',{
+    preHandler:[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.INVENTORY_WRITE)],
+    schema:{body:{type:'object',additionalProperties:false,minProperties:1,properties:{
+      name:{type:'string',minLength:1,maxLength:160},status:{type:'string',enum:['ACTIVE','INACTIVE']},is_default:{type:'boolean'}
+    }}},
+  },async(request)=>{const store=await resolveStore(app.db,request.auth.tenantId,storeHeader(request),{requireActive:false});const row=await app.db.transaction(async(client)=>{
+    const found=await client.query('SELECT * FROM inventory_locations WHERE tenant_id=$1 AND store_id=$2 AND public_id=$3 FOR UPDATE',[request.auth.tenantId,store.id,request.params.locationId]);
+    if(!found.rowCount)throw errors.notFound('INVENTORY_LOCATION_NOT_FOUND','Inventory location not found');const cur=found.rows[0],b=request.body||{};const status=b.status??cur.status;const makeDefault=b.is_default??cur.is_default;
+    if(cur.is_default&&status!=='ACTIVE')throw errors.conflict('DEFAULT_LOCATION_MUST_BE_ACTIVE','Choose another default location before deactivating this one');
+    if(cur.is_default&&b.is_default===false)throw errors.conflict('DEFAULT_LOCATION_REQUIRED','Choose another default location instead of removing the default flag');
+    if(makeDefault&&status!=='ACTIVE')throw errors.conflict('DEFAULT_LOCATION_MUST_BE_ACTIVE','Default inventory location must be active');
+    if(makeDefault&&!cur.is_default)await client.query('UPDATE inventory_locations SET is_default=false,updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND id<>$3',[request.auth.tenantId,store.id,cur.id]);
+    const updated=await client.query(`UPDATE inventory_locations SET name=$1,status=$2,is_default=$3,updated_at=now() WHERE tenant_id=$4 AND store_id=$5 AND id=$6 RETURNING public_id,code,name,status,is_default,created_at,updated_at`,[b.name?.trim()??cur.name,status,Boolean(makeDefault),request.auth.tenantId,store.id,cur.id]);
+    await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'inventory.location.update',targetType:'inventory_location',targetId:cur.id,metadata:{changed_fields:Object.keys(b),store_id:store.public_id},requestIp:request.ip,requestId:request.id});return updated.rows[0];});return {data:{location:row}};});
+
   app.post('/v1/merchant/inventory/adjustments',{
     preHandler:[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.INVENTORY_WRITE)],
     schema:{body:{type:'object',additionalProperties:false,required:['inventory_item_id','movement_type','quantity'],properties:{inventory_item_id:{type:'string',maxLength:100},location_id:{type:'string',maxLength:100},movement_type:{type:'string',enum:['RECEIVE','RETURN','ADJUSTMENT','DAMAGE']},quantity:{type:'integer',minimum:-999999999,maximum:999999999,not:{const:0}},reason:{type:'string',maxLength:1000},reference_type:{type:'string',maxLength:100},reference_id:{type:'string',maxLength:200}}}},

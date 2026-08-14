@@ -1,6 +1,6 @@
 import { errors } from '../../core/errors.js';
 import { normalizeEmail, uuid } from '../../core/identifiers.js';
-import { verifyPassword } from '../../core/passwords.js';
+import { assertPasswordPolicy, hashPassword, verifyPassword } from '../../core/passwords.js';
 import { hashRefreshToken, newRefreshToken, signAccessToken } from '../../core/tokens.js';
 import { writeAudit } from '../../core/audit.js';
 
@@ -115,4 +115,84 @@ export async function merchantAuthRoutes(app) {
     user: { id: request.auth.profile.public_id, email: request.auth.profile.email, display_name: request.auth.profile.display_name,
       status: request.auth.profile.status, roles: request.auth.roleKeys, permissions: request.auth.permissions },
   } }));
+
+  app.patch('/v1/merchant/me', {
+    preHandler: [app.requireMerchantAuth],
+    schema: { body: { type: 'object', additionalProperties: false, minProperties: 1, properties: {
+      display_name: { type: 'string', minLength: 1, maxLength: 120 },
+    } } },
+  }, async (request) => app.db.transaction(async (client) => {
+    const name = request.body.display_name.trim();
+    const updated = await client.query(
+      `UPDATE merchant_users SET display_name=$1,updated_at=now()
+        WHERE tenant_id=$2 AND id=$3 RETURNING public_id,email,display_name,status`,
+      [name, request.auth.tenantId, request.auth.actorId],
+    );
+    await writeAudit(client, { tenantId: request.auth.tenantId, actorType: 'MERCHANT', actorId: request.auth.actorId,
+      action: 'merchant.profile.update', targetType: 'merchant_user', targetId: request.auth.actorId,
+      metadata: { changed_fields: ['display_name'] }, requestIp: request.ip, requestId: request.id });
+    return { data: { user: { id: updated.rows[0].public_id, ...updated.rows[0], roles: request.auth.roleKeys, permissions: request.auth.permissions } } };
+  }));
+
+  app.post('/v1/merchant/me/change-password', {
+    preHandler: [app.requireMerchantAuth],
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    schema: { body: { type: 'object', additionalProperties: false, required: ['current_password','new_password'], properties: {
+      current_password: { type: 'string', minLength: 12, maxLength: 128 },
+      new_password: { type: 'string', minLength: 12, maxLength: 128 },
+    } } },
+  }, async (request) => app.db.transaction(async (client) => {
+    const found = await client.query('SELECT password_hash FROM merchant_users WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [request.auth.tenantId, request.auth.actorId]);
+    if (!found.rowCount || !await verifyPassword(found.rows[0].password_hash, request.body.current_password)) {
+      throw errors.unauthorized('CURRENT_PASSWORD_INVALID', 'Current password is incorrect');
+    }
+    let password;
+    try { password = assertPasswordPolicy(request.body.new_password); }
+    catch (error) { throw errors.badRequest('PASSWORD_POLICY', error.message); }
+    const hash = await hashPassword(password);
+    await client.query('UPDATE merchant_users SET password_hash=$1,password_changed_at=now(),updated_at=now() WHERE tenant_id=$2 AND id=$3', [hash, request.auth.tenantId, request.auth.actorId]);
+    const revoked = await client.query('UPDATE merchant_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE tenant_id=$1 AND merchant_user_id=$2 AND id<>$3 AND revoked_at IS NULL', [request.auth.tenantId, request.auth.actorId, request.auth.sessionId]);
+    await writeAudit(client, { tenantId: request.auth.tenantId, actorType: 'MERCHANT', actorId: request.auth.actorId,
+      action: 'merchant.password.change', targetType: 'merchant_user', targetId: request.auth.actorId,
+      metadata: { other_sessions_revoked: revoked.rowCount }, requestIp: request.ip, requestId: request.id });
+    return { data: { changed: true, other_sessions_revoked: revoked.rowCount } };
+  }));
+
+  app.get('/v1/merchant/me/sessions', { preHandler: [app.requireMerchantAuth] }, async (request) => {
+    const rows = await app.db.query(
+      `SELECT public_id AS id,user_agent,host(request_ip) AS request_ip,created_at,last_seen_at,expires_at,
+              (id=$3) AS current
+         FROM merchant_sessions
+        WHERE tenant_id=$1 AND merchant_user_id=$2 AND revoked_at IS NULL AND expires_at>now()
+        ORDER BY current DESC,last_seen_at DESC`,
+      [request.auth.tenantId, request.auth.actorId, request.auth.sessionId],
+    );
+    return { data: { sessions: rows.rows } };
+  });
+
+  app.delete('/v1/merchant/me/sessions/:sessionRef', { preHandler: [app.requireMerchantAuth] }, async (request) => app.db.transaction(async (client) => {
+    const found = await client.query(
+      `UPDATE merchant_sessions SET revoked_at=COALESCE(revoked_at,now()),last_seen_at=now()
+        WHERE tenant_id=$1 AND merchant_user_id=$2 AND public_id=$3 AND revoked_at IS NULL
+        RETURNING id`, [request.auth.tenantId, request.auth.actorId, request.params.sessionRef],
+    );
+    if (!found.rowCount) throw errors.notFound('MERCHANT_SESSION_NOT_FOUND', 'Session not found');
+    await writeAudit(client, { tenantId: request.auth.tenantId, actorType: 'MERCHANT', actorId: request.auth.actorId,
+      action: 'merchant.session.revoke', targetType: 'merchant_session', targetId: found.rows[0].id,
+      requestIp: request.ip, requestId: request.id });
+    return { data: { revoked: true, current_session: found.rows[0].id === request.auth.sessionId } };
+  }));
+
+  app.post('/v1/merchant/me/sessions/revoke-others', { preHandler: [app.requireMerchantAuth] }, async (request) => app.db.transaction(async (client) => {
+    const result = await client.query(
+      `UPDATE merchant_sessions SET revoked_at=COALESCE(revoked_at,now())
+        WHERE tenant_id=$1 AND merchant_user_id=$2 AND id<>$3 AND revoked_at IS NULL`,
+      [request.auth.tenantId, request.auth.actorId, request.auth.sessionId],
+    );
+    await writeAudit(client, { tenantId: request.auth.tenantId, actorType: 'MERCHANT', actorId: request.auth.actorId,
+      action: 'merchant.sessions.revoke_others', targetType: 'merchant_user', targetId: request.auth.actorId,
+      metadata: { sessions_revoked: result.rowCount }, requestIp: request.ip, requestId: request.id });
+    return { data: { sessions_revoked: result.rowCount } };
+  }));
+
 }

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-const read=p=>fs.readFileSync(p,'utf8');
+const read=p=>fs.readFileSync(p,'utf8').replace(/\r\n?/g,'\n');
 const pkg=JSON.parse(read('package.json'));
 const config=read('src/config.js');
 const migration=read('migrations/011_store_designer_v3.sql');
@@ -9,8 +9,8 @@ const merchant=read('src/modules/merchant/tenant-routes.js');
 const catalog=read('src/modules/catalog/storefront-routes.js');
 const provisioning=read('src/modules/platform/provisioning.js');
 const tests=[];const test=(name,fn)=>tests.push([name,fn]);
-test('release is v0.10.0',()=>assert.equal(pkg.version,'0.10.0'));
-test('release marker is Store Designer v3',()=>assert.match(config,/0\.10\.0-store-designer-v3/));
+test('release is v0.10.0',()=>assert.ok(['0.10.0','0.11.0'].includes(pkg.version)));
+test('release marker is Store Designer v3',()=>assert.match(config,/(?:0\.10\.0-store-designer-v3|0\.11\.0-operations-control-completion)/));
 test('migration 011 advances default schema to v3',()=>assert.match(migration,/ALTER COLUMN schema_version SET DEFAULT 3/));
 test('migration 011 records base template and customized state',()=>{assert.match(migration,/base_template_key/);assert.match(migration,/template_customized/)});
 test('migration 011 keeps earlier migrations immutable',()=>assert.match(migration,/Migrations 001-010 remain immutable/));

@@ -1,73 +1,77 @@
-# Luke Shop Backend v0.6.0 — API Contract
+# Luke Shop Backend v0.11.0 — Current API Contract Summary
 
-All merchant access-management routes require a valid merchant bearer session. Every query is tenant scoped by the authenticated merchant tenant; clients never supply an arbitrary tenant ID.
+All tenant-sensitive operations are backend-authoritative. Merchant/customer requests are scoped by authenticated tenant context and optional validated store context. Platform Admin uses `/v1/platform/*` and never impersonates tenant headers. Luke CS uses its dedicated service boundary.
 
-## Permissions
+## Route inventory
 
-- `merchant.staff.read`
-- `merchant.staff.manage`
-- `merchant.roles.read`
-- `merchant.roles.manage`
-- `merchant.sessions.manage`
+Current backend source exposes 187 HTTP routes:
+- Merchant/Admin: 101
+- Platform Admin: 34
+- Customer: 27
+- Storefront: 9
+- Luke CS service-to-service: 12
+- Health: 3
+- Public asset delivery: 1
 
-Existing `OWNER` roles receive all five during migration 006.
+The coordinated cross-repo audit checks normal Merchant, Customer and Platform route surfaces against their corresponding UI clients. Internal/service, health, public-asset and compatibility endpoints are intentionally excluded from normal UI parity requirements.
 
-## Permission catalog
+## v0.11.0 operations/control additions
 
-`GET /v1/merchant/permissions`
+### Merchant stores and audit
+- `GET /v1/merchant/stores`
+- `POST /v1/merchant/stores`
+- `PATCH /v1/merchant/stores/:storeRef`
+- `GET /v1/merchant/audit`
 
-## Roles
+### Merchant self-service security
+- `GET/PATCH /v1/merchant/me`
+- `POST /v1/merchant/me/change-password`
+- `GET /v1/merchant/me/sessions`
+- `DELETE /v1/merchant/me/sessions/:sessionRef`
+- `POST /v1/merchant/me/sessions/revoke-others`
 
-- `GET /v1/merchant/roles`
-- `POST /v1/merchant/roles`
-- `PATCH /v1/merchant/roles/:roleRef`
-- `PUT /v1/merchant/roles/:roleRef/permissions`
-- `DELETE /v1/merchant/roles/:roleRef`
+### Customer self-service account
+- `GET/PATCH /v1/customer/me`
+- `GET/POST /v1/customer/me/addresses`
+- `PATCH/DELETE /v1/customer/me/addresses/:addressRef`
+- `POST /v1/customer/me/change-password`
+- `GET /v1/customer/me/sessions`
+- `DELETE /v1/customer/me/sessions/:sessionRef`
+- `POST /v1/customer/me/sessions/revoke-others`
 
-System roles cannot be modified/deleted. Non-OWNER merchants cannot assign OWNER. A merchant cannot grant permissions they do not themselves possess.
+### Catalog, inventory and promotion completion
+- category update
+- inventory-location update
+- modifier-group/option update and deactivate
+- promotion-code update/deactivate
+- promotion-target removal
 
-## Staff
+### Payments and refunds
+- payment method create/update includes public `provider_key`, `public_config` and `sort_order`
+- `GET /v1/merchant/refunds`
+- `POST /v1/merchant/orders/:orderRef/refunds`
+- `PATCH /v1/merchant/refunds/:refundRef`
 
-- `GET /v1/merchant/staff`
-- `POST /v1/merchant/staff`
-- `GET /v1/merchant/staff/:staffRef`
-- `PATCH /v1/merchant/staff/:staffRef`
-- `PUT /v1/merchant/staff/:staffRef/roles`
-- `POST /v1/merchant/staff/:staffRef/reset-password`
-- `POST /v1/merchant/staff/:staffRef/force-logout`
+Refund records use a controlled internal lifecycle. A `SUCCEEDED` record means an authorized operator has recorded the corresponding provider/operator result; this route does not itself call a third-party payment API.
 
-Staff creation requires an initial password that satisfies the existing 12-128 character policy. Password hashes are never returned.
+### Platform control completion
+- plan create/update
+- typography preset create/update
+- tenant store list/create/update
+- tenant regional settings (`currency`, `locale`, `timezone`) and internal notes
+- tenant owner identity/access update
+- Platform Owner self profile/password/session controls
+- custom-domain DNS TXT verification using backend DNS resolution
 
-`SUSPENDED`/`DISABLED` changes revoke all active sessions. Self suspend/disable and self role replacement are blocked to reduce accidental lockout risk.
+## Existing core domains preserved
 
-## Sessions
+The release preserves catalog/products/variants/media, inventory ledger, cart/checkout/orders, payment attempts, delivery/fulfillment, promotions, Customer Experience v3, Media Library, Staff/RBAC, dynamic storefront resolution, signed draft preview and Luke CS service APIs.
 
-- `GET /v1/merchant/staff/:staffRef/sessions`
-- `DELETE /v1/merchant/staff/:staffRef/sessions/:sessionRef`
+## Security and production boundaries
 
-Session responses contain public session ID, user agent, request IP, lifecycle timestamps, and active/revoked state. Refresh-token hashes are never returned.
-
-## v0.7.0 platform and customer-experience contract
-Platform endpoints are under `/v1/platform/*`. Merchant Customer Experience endpoints are under `/v1/merchant/customer-experience*`. Public `/v1/storefront/config` exposes only published experience.
-
-
-## Media Asset Library v0.8.0
-
-- `POST /v1/merchant/assets/upload?filename=...&visibility=PUBLIC|PRIVATE` — raw image/video body; requires `catalog.write`.
-- `GET /v1/merchant/assets` — list current store assets; requires `catalog.read`.
-- `GET /v1/merchant/assets/:assetId/content` — authenticated asset delivery.
-- `DELETE /v1/merchant/assets/:assetId` — soft-deactivate asset and active product attachments.
-- `GET /v1/assets/public/:assetId` — public active asset delivery with byte-range support.
-- `POST /v1/merchant/products/:productId/media` accepts `asset_id`.
-- `PATCH /v1/merchant/products/:productId/media/:mediaId` changes attachment metadata/primary/status.
-- `PUT /v1/merchant/products/:productId/media/order` reorders product media.
-- `DELETE /v1/merchant/products/:productId/media/:mediaId` soft-deactivates the attachment.
-
-## v0.10.0 Store Designer Engine v3
-
-- `GET /v1/merchant/stores` returns the authenticated tenant's store selector options. It never accepts a tenant override.
-- Customer Experience drafts normalize to `schema_version: 3` and add SEO, responsive product columns, responsive hero media position, slider slides, video media fields, and featured-product reference.
-- Experience versions keep the backwards-compatible `template_key` plus `base_template_key` and `template_customized` for a truthful `Template · Customized` UI state.
-- `POST /v1/merchant/customer-experience/preview-token` remains the only mechanism for private draft storefront preview.
-- Public storefront category results include a representative public product image when one exists; no private media is exposed.
-- Public storefront product summaries include fulfillment modes and variant presence so Customer Web can decide whether one-click quick-add is safe.
+- No direct frontend database access.
+- Tenant and store IDs are validated server-side.
+- Permission checks remain route-authoritative.
+- Secrets must not be placed in public payment/delivery configuration.
+- Migration 012 is applied separately from the Windows source installer.
+- Customer forgot-password token delivery is not claimed without a configured external email/SMS provider.

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const read = (p) => readFileSync(p, 'utf8');
+const read = (p) => readFileSync(p, 'utf8').replace(/\r\n?/g, '\n');
 const migration = read('migrations/002_catalog_inventory_foundation.sql');
 const merchant = read('src/modules/catalog/merchant-routes.js');
 const storefront = read('src/modules/catalog/storefront-routes.js');

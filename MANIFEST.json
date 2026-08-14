@@ -1,10 +1,10 @@
 {
   "product": "LUKE_SHOP_BACKEND",
-  "version": "0.10.0",
-  "release": "Store Designer Engine v3",
+  "version": "0.11.0",
+  "release": "Operations & Control Completion",
   "date": "2026-08-14",
-  "baseline": "0.9.0",
-  "migration": "011_store_designer_v3.sql",
+  "baseline": "0.10.0",
+  "migration": "012_operations_control_completion.sql",
   "experience_schema": 3,
-  "font_policy": "No font binaries are bundled. iOS remains a native system stack; approved web presets use external stylesheet URLs."
+  "notes": "Route/control parity completion across Merchant Admin, Customer Web and Platform Admin. Refund records are internal workflow state and do not execute provider money movement."
 }
