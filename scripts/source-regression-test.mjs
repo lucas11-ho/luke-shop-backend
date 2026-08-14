@@ -40,7 +40,7 @@ const merchantAccess = read('src/modules/merchant/access-routes.js');
 const merchantAccessService = read('src/modules/merchant/access-service.js');
 
 // The foundation migration is immutable across the catalog release.
-test('release remains compatible through v0.9.0', () => assert.equal(pkg.version, '0.9.0'));
+test('release remains compatible through v0.9.0', () => assert.ok(['0.9.0','0.10.0'].includes(pkg.version)));
 test('Node 24+ is required', () => assert.match(pkg.engines.node, />=24/));
 test('Fastify v5 is pinned', () => assert.match(pkg.dependencies.fastify, /^5\./));
 test('migration 001 exists and is immutable', () => {
@@ -206,4 +206,4 @@ for (const [name, fn] of tests) {
   try { fn(); passed += 1; console.log(`PASS ${name}`); }
   catch (error) { console.error(`FAIL ${name}`); throw error; }
 }
-console.log(`${passed}/${tests.length} Luke Shop Backend v0.8.0 source regression checks passed`);
+console.log(`${passed}/${tests.length} Luke Shop Backend v0.10.0 source regression checks passed`);

@@ -1,8 +1,8 @@
-# LUKE_SHOP_BACKEND — current release v0.9.0
+# LUKE_SHOP_BACKEND — current release v0.10.0
 
-**Experience Engine v2 + Commerce Workflow** · 2026-08-13
+**Store Designer Engine v3 + Experience Schema v3** · 2026-08-14
 
-See `RELEASE_NOTES_v0.9.0.md` and `DEPLOYMENT_CHECKLIST_v0.9.0.md`.
+See `RELEASE_NOTES_v0.10.0.md` and `DEPLOYMENT_CHECKLIST_v0.10.0.md`.
 
 # Luke Shop Backend v0.8.0
 

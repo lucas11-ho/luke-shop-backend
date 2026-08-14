@@ -3,6 +3,17 @@ import { writeAudit } from '../../core/audit.js';
 import { getTenantById } from '../tenants/service.js';
 
 export async function merchantTenantRoutes(app) {
+  app.get('/v1/merchant/stores', {
+    preHandler: [app.requireMerchantAuth],
+  }, async (request) => {
+    const result = await app.db.query(
+      `SELECT public_id AS id,slug,name,status,is_primary,created_at,updated_at
+         FROM stores WHERE tenant_id=$1 ORDER BY is_primary DESC,name`,
+      [request.auth.tenantId],
+    );
+    return { data: { stores: result.rows } };
+  });
+
   app.get('/v1/merchant/tenant', {
     preHandler: [app.requireMerchantAuth, app.requirePermission(PERMISSIONS.TENANT_SETTINGS_READ)],
   }, async (request) => ({ data: { tenant: await getTenantById(app.db, request.auth.tenantId) } }));

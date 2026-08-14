@@ -62,3 +62,12 @@ Platform endpoints are under `/v1/platform/*`. Merchant Customer Experience endp
 - `PATCH /v1/merchant/products/:productId/media/:mediaId` changes attachment metadata/primary/status.
 - `PUT /v1/merchant/products/:productId/media/order` reorders product media.
 - `DELETE /v1/merchant/products/:productId/media/:mediaId` soft-deactivates the attachment.
+
+## v0.10.0 Store Designer Engine v3
+
+- `GET /v1/merchant/stores` returns the authenticated tenant's store selector options. It never accepts a tenant override.
+- Customer Experience drafts normalize to `schema_version: 3` and add SEO, responsive product columns, responsive hero media position, slider slides, video media fields, and featured-product reference.
+- Experience versions keep the backwards-compatible `template_key` plus `base_template_key` and `template_customized` for a truthful `Template · Customized` UI state.
+- `POST /v1/merchant/customer-experience/preview-token` remains the only mechanism for private draft storefront preview.
+- Public storefront category results include a representative public product image when one exists; no private media is exposed.
+- Public storefront product summaries include fulfillment modes and variant presence so Customer Web can decide whether one-click quick-add is safe.

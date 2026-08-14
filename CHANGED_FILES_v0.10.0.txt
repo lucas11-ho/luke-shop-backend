@@ -1,0 +1,32 @@
+Luke Shop Store Designer v3 — luke-shop-backend 0.10.0
+Baseline diff only; generated release inventory is not counted as its own change.
+
+MODIFIED	API_CONTRACT.md
+NEW	DEPLOYMENT_CHECKLIST_v0.10.0.md
+MODIFIED	FILE_CHECKSUMS.sha256
+MODIFIED	MANIFEST.json
+MODIFIED	README.md
+NEW	RELEASE_NOTES_v0.10.0.md
+MODIFIED	START-HERE-WINDOWS.bat
+NEW	TECHNICAL_ANALYSIS_v0.10.0.md
+NEW	TEST_RESULT_v0.10.0.md
+NEW	migrations/011_store_designer_v3.sql
+MODIFIED	package-lock.json
+MODIFIED	package.json
+MODIFIED	scripts/source-regression-test.mjs
+MODIFIED	scripts/v0.1.1-auth-reliability-regression-test.mjs
+MODIFIED	scripts/v0.1.2-http-error-semantics-regression-test.mjs
+NEW	scripts/v0.10.0-store-designer-v3-regression-test.mjs
+MODIFIED	scripts/v0.4.1-runtime-integration-regression-test.mjs
+MODIFIED	scripts/v0.4.2-commerce-runtime-reliability-regression-test.mjs
+MODIFIED	scripts/v0.5.0-cs-commerce-connector-regression-test.mjs
+MODIFIED	scripts/v0.6.0-merchant-staff-rbac-regression-test.mjs
+MODIFIED	scripts/v0.7.0-platform-control-plane-regression-test.mjs
+MODIFIED	scripts/v0.7.1-storefront-routing-regression-test.mjs
+MODIFIED	scripts/v0.8.0-media-asset-library-regression-test.mjs
+MODIFIED	scripts/v0.9.0-experience-commerce-workflow-regression-test.mjs
+MODIFIED	src/config.js
+MODIFIED	src/modules/catalog/storefront-routes.js
+MODIFIED	src/modules/customer-experience/service.js
+MODIFIED	src/modules/merchant/tenant-routes.js
+MODIFIED	src/modules/platform/provisioning.js

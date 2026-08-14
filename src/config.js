@@ -38,7 +38,7 @@ export function loadConfig() {
     .filter(Boolean);
 
   const config = {
-    release: '0.9.0-experience-commerce-workflow',
+    release: '0.10.0-store-designer-v3',
     nodeEnv,
     production,
     host: process.env.HOST?.trim() || '0.0.0.0',

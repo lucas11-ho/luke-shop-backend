@@ -76,13 +76,13 @@ export async function provisionTenant(client, input, { platformUserId = null } =
   experience.branding = { ...(experience.branding || {}), store_name: name, ...(input.experience_branding || {}) };
   const normalizedExperience = normalizeExperienceConfig(experience);
   await client.query(
-    `INSERT INTO storefront_experience_versions(id,public_id,tenant_id,store_id,version,state,config,template_key,schema_version,published_at)
-     VALUES($1,$2,$3,$4,1,'PUBLISHED',$5::jsonb,$6,2,now())`,
+    `INSERT INTO storefront_experience_versions(id,public_id,tenant_id,store_id,version,state,config,template_key,base_template_key,template_customized,schema_version,published_at)
+     VALUES($1,$2,$3,$4,1,'PUBLISHED',$5::jsonb,$6,$6,false,3,now())`,
     [uuid(), publicId('sfx'), tenantId, storeId, JSON.stringify(normalizedExperience), templateKey],
   );
   await client.query(
-    `INSERT INTO storefront_experience_versions(id,public_id,tenant_id,store_id,version,state,config,template_key,schema_version)
-     VALUES($1,$2,$3,$4,2,'DRAFT',$5::jsonb,$6,2)`,
+    `INSERT INTO storefront_experience_versions(id,public_id,tenant_id,store_id,version,state,config,template_key,base_template_key,template_customized,schema_version)
+     VALUES($1,$2,$3,$4,2,'DRAFT',$5::jsonb,$6,$6,false,3)`,
     [uuid(), publicId('sfx'), tenantId, storeId, JSON.stringify(normalizedExperience), templateKey],
   );
 

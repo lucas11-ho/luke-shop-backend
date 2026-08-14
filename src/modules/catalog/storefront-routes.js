@@ -7,7 +7,8 @@ export async function storefrontCatalogRoutes(app) {
   }, async (request) => {
     const store = await resolveStore(app.db, request.tenant.id, request.headers['x-store-id'] || null);
     const result = await app.db.query(
-      `SELECT c.public_id,c.slug,c.name,c.description,c.sort_order,p.public_id AS parent_id
+      `SELECT c.public_id,c.slug,c.name,c.description,c.sort_order,p.public_id AS parent_id,
+              (SELECT m.url FROM products cp JOIN product_media m ON m.tenant_id=cp.tenant_id AND m.store_id=cp.store_id AND m.product_id=cp.id AND m.visibility='PUBLIC' AND m.status='ACTIVE' WHERE cp.tenant_id=c.tenant_id AND cp.store_id=c.store_id AND cp.category_id=c.id AND cp.status='PUBLISHED' ORDER BY m.is_primary DESC,m.sort_order,m.created_at LIMIT 1) AS image_url
          FROM categories c LEFT JOIN categories p ON p.id=c.parent_id AND p.tenant_id=c.tenant_id AND p.store_id=c.store_id
         WHERE c.tenant_id=$1 AND c.store_id=$2 AND c.status='ACTIVE'
           AND EXISTS(SELECT 1 FROM products pr WHERE pr.tenant_id=c.tenant_id AND pr.store_id=c.store_id AND pr.category_id=c.id AND pr.status='PUBLISHED')
@@ -33,6 +34,8 @@ export async function storefrontCatalogRoutes(app) {
       `SELECT p.public_id,p.slug,p.name,p.short_description,p.product_type,p.base_price,p.compare_at_price,p.currency,p.track_inventory,
               c.public_id AS category_id,c.slug AS category_slug,c.name AS category_name,
               (SELECT m.url FROM product_media m WHERE m.tenant_id=p.tenant_id AND m.store_id=p.store_id AND m.product_id=p.id AND m.visibility='PUBLIC' AND m.status='ACTIVE' ORDER BY m.is_primary DESC,m.sort_order,m.created_at LIMIT 1) AS primary_media_url,
+              ARRAY(SELECT pfm.mode FROM product_fulfillment_modes pfm WHERE pfm.tenant_id=p.tenant_id AND pfm.store_id=p.store_id AND pfm.product_id=p.id ORDER BY pfm.mode) AS fulfillment_modes,
+              EXISTS(SELECT 1 FROM product_variants pv WHERE pv.tenant_id=p.tenant_id AND pv.store_id=p.store_id AND pv.product_id=p.id AND pv.status='ACTIVE') AS has_variants,
               CASE WHEN NOT EXISTS(SELECT 1 FROM inventory_items ti WHERE ti.tenant_id=p.tenant_id AND ti.store_id=p.store_id AND ti.product_id=p.id AND ti.status='ACTIVE' AND ti.track_inventory=true) THEN true ELSE COALESCE((SELECT SUM(b.on_hand-b.reserved)>0 FROM inventory_items i LEFT JOIN inventory_balances b ON b.tenant_id=i.tenant_id AND b.store_id=i.store_id AND b.inventory_item_id=i.id WHERE i.tenant_id=p.tenant_id AND i.store_id=p.store_id AND i.product_id=p.id AND i.status='ACTIVE' AND i.track_inventory=true),false) END AS in_stock
          FROM products p LEFT JOIN categories c ON c.id=p.category_id AND c.tenant_id=p.tenant_id AND c.store_id=p.store_id
         WHERE ${where} ORDER BY p.published_at DESC NULLS LAST,p.created_at DESC LIMIT $${values.length-1} OFFSET $${values.length}`,values);

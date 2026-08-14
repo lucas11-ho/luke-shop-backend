@@ -1,0 +1,34 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const read=p=>fs.readFileSync(p,'utf8');
+const pkg=JSON.parse(read('package.json'));
+const config=read('src/config.js');
+const migration=read('migrations/011_store_designer_v3.sql');
+const service=read('src/modules/customer-experience/service.js');
+const merchant=read('src/modules/merchant/tenant-routes.js');
+const catalog=read('src/modules/catalog/storefront-routes.js');
+const provisioning=read('src/modules/platform/provisioning.js');
+const tests=[];const test=(name,fn)=>tests.push([name,fn]);
+test('release is v0.10.0',()=>assert.equal(pkg.version,'0.10.0'));
+test('release marker is Store Designer v3',()=>assert.match(config,/0\.10\.0-store-designer-v3/));
+test('migration 011 advances default schema to v3',()=>assert.match(migration,/ALTER COLUMN schema_version SET DEFAULT 3/));
+test('migration 011 records base template and customized state',()=>{assert.match(migration,/base_template_key/);assert.match(migration,/template_customized/)});
+test('migration 011 keeps earlier migrations immutable',()=>assert.match(migration,/Migrations 001-010 remain immutable/));
+test('web-font catalog stores stylesheet URLs, not font binaries',()=>{assert.match(migration,/fonts\.googleapis\.com/);assert.doesNotMatch(migration,/\.(ttf|otf|woff2?)\b/i)});
+test('experience normalizer writes schema v3',()=>assert.match(service,/schema_version:\s*3/));
+test('experience schema supports customer/internal naming split',()=>assert.match(service,/use_internal_name/));
+test('experience schema supports SEO metadata',()=>{assert.match(service,/social_image_url/);assert.match(service,/description/)});
+test('experience schema supports responsive columns',()=>assert.match(service,/product_columns/));
+test('experience schema supports responsive hero media positions',()=>assert.match(service,/hero_media_position/));
+test('experience schema supports real slider content',()=>{assert.match(service,/normalizeSlides/);assert.match(service,/slides:/)});
+test('experience schema supports video and featured product hero data',()=>{assert.match(service,/video_url/);assert.match(service,/poster_url/);assert.match(service,/product_ref/)});
+test('all v3 layout contract values are backend-normalized',()=>{
+  for(const token of ['transparent','slider','featured_product','video','circles','image_tiles','horizontal','technical','quick_add','editorial','ios']) assert.ok(service.includes(`'${token}'`),`missing ${token}`);
+});
+test('draft metadata exposes base template and customized state',()=>{assert.match(service,/base_template_key/);assert.match(service,/template_customized/)});
+test('merchant store selector endpoint is tenant scoped',()=>{assert.match(merchant,/app\.get\('\/v1\/merchant\/stores'/);assert.match(merchant,/WHERE tenant_id=\$1/)});
+test('storefront product cards receive safe quick-add capability facts',()=>{assert.match(catalog,/fulfillment_modes/);assert.match(catalog,/has_variants/)});
+test('storefront categories expose representative public product imagery',()=>assert.match(catalog,/AS image_url/));
+test('new tenant provisioning initializes Experience schema v3 metadata',()=>{assert.match(provisioning,/base_template_key/);assert.match(provisioning,/template_customized/);assert.match(provisioning,/schema_version/)});
+let passed=0;for(const[name,fn]of tests){try{fn();passed++;console.log(`PASS ${name}`)}catch(e){console.error(`FAIL ${name}`);throw e}}
+console.log(`${passed}/${tests.length} Luke Shop Backend v0.10.0 Store Designer Engine v3 checks passed`);

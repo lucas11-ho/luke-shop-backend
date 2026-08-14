@@ -1,8 +1,10 @@
 {
   "product": "LUKE_SHOP_BACKEND",
-  "version": "0.9.0",
-  "release": "Experience Engine v2 + Commerce Workflow",
-  "date": "2026-08-13",
-  "baseline": "0.8.0",
-  "font_policy": "No Apple font binaries are bundled; iOS preset uses native system font stack."
+  "version": "0.10.0",
+  "release": "Store Designer Engine v3",
+  "date": "2026-08-14",
+  "baseline": "0.9.0",
+  "migration": "011_store_designer_v3.sql",
+  "experience_schema": 3,
+  "font_policy": "No font binaries are bundled. iOS remains a native system stack; approved web presets use external stylesheet URLs."
 }
