@@ -49,6 +49,11 @@ export async function buildApp(config) {
   await app.register(rateLimit, { global: true, max: config.rateLimitMax, timeWindow: '1 minute' });
   await app.register(cors, {
     credentials: false,
+    methods: ['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS'],
+    allowedHeaders: ['Authorization','Content-Type','X-Tenant-Slug','X-Store-Id'],
+    exposedHeaders: ['X-Request-Id'],
+    maxAge: 600,
+    strictPreflight: true,
     origin(origin, callback) {
       if (!origin) return callback(null, true);
       if (config.corsOrigins.includes(origin)) return callback(null, true);

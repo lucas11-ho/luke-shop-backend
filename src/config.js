@@ -38,7 +38,7 @@ export function loadConfig() {
     .filter(Boolean);
 
   const config = {
-    release: '0.11.0-operations-control-completion',
+    release: '0.11.1-customer-experience-reliability',
     nodeEnv,
     production,
     host: process.env.HOST?.trim() || '0.0.0.0',
@@ -69,6 +69,11 @@ export function loadConfig() {
     storefrontHostSuffix: process.env.STOREFRONT_HOST_SUFFIX?.trim().toLowerCase().replace(/^\.+|\.+$/g, '') || '',
     storefrontPreviewTtlSeconds: intEnv('STOREFRONT_PREVIEW_TTL_SECONDS', 600, { min: 60, max: 3600 }),
     assetStorageDriver: (process.env.ASSET_STORAGE_DRIVER || 'LOCAL').trim().toUpperCase(),
+    r2AccountId: process.env.R2_ACCOUNT_ID?.trim() || '',
+    r2Bucket: process.env.R2_BUCKET?.trim() || '',
+    r2AccessKeyId: process.env.R2_ACCESS_KEY_ID?.trim() || '',
+    r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY?.trim() || '',
+    r2PublicBaseUrl: process.env.R2_PUBLIC_BASE_URL?.trim().replace(/\/$/, '') || '',
     assetLocalDir: process.env.ASSET_LOCAL_DIR?.trim() || '.data/assets',
     assetPublicBaseUrl: process.env.ASSET_PUBLIC_BASE_URL?.trim().replace(/\/$/, '') || `http://localhost:${intEnv('PORT', 4100, { min: 1, max: 65535 })}`,
     assetImageMaxBytes: intEnv('ASSET_IMAGE_MAX_BYTES', 10485760, { min: 65536, max: 52428800 }),
@@ -78,11 +83,16 @@ export function loadConfig() {
   if (production && corsOrigins.length === 0) {
     throw new Error('CORS_ORIGINS must be configured in production');
   }
-  if (!['LOCAL'].includes(config.assetStorageDriver)) {
-    throw new Error('ASSET_STORAGE_DRIVER currently supports LOCAL; use the storage adapter seam for R2/S3 in production');
+  if (!['LOCAL','R2'].includes(config.assetStorageDriver)) {
+    throw new Error('ASSET_STORAGE_DRIVER must be LOCAL or R2');
   }
-  if (production && !process.env.ASSET_PUBLIC_BASE_URL?.trim()) {
-    throw new Error('ASSET_PUBLIC_BASE_URL must be configured in production');
+  if (config.assetStorageDriver === 'R2') {
+    for (const [name, value] of [['R2_ACCOUNT_ID',config.r2AccountId],['R2_BUCKET',config.r2Bucket],['R2_ACCESS_KEY_ID',config.r2AccessKeyId],['R2_SECRET_ACCESS_KEY',config.r2SecretAccessKey]]) {
+      if (!value) throw new Error(`${name} is required when ASSET_STORAGE_DRIVER=R2`);
+    }
+  }
+  if (production && !process.env.ASSET_PUBLIC_BASE_URL?.trim() && !(config.assetStorageDriver === 'R2' && config.r2PublicBaseUrl)) {
+    throw new Error('ASSET_PUBLIC_BASE_URL is required in production unless R2_PUBLIC_BASE_URL is configured');
   }
   if (production && config.csContextSigningSecret === config.csServiceSigningSecret) {
     throw new Error('CS_CONTEXT_SIGNING_SECRET and CS_SERVICE_SIGNING_SECRET must be different in production');

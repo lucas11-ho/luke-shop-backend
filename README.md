@@ -1,17 +1,34 @@
-# LUKE_SHOP_BACKEND — current release v0.11.0
+# LUKE_SHOP_BACKEND — current release v0.11.1
 
-**Operations & Control Completion API** · 2026-08-14
+**Customer Experience Reliability & Production Media Repair** · 2026-08-15
 
 Luke Shop Backend is the tenant-authoritative commerce API for Merchant Admin, Customer Web, Platform Admin and the Luke CS service connector.
 
 Current coordinated frontend versions:
-- Merchant Admin v0.9.0
-- Customer Web v0.6.0
+- Merchant Admin v0.9.1
+- Customer Web v0.6.1
 - Platform Admin v0.4.0
 
 Database baseline: migrations through `012_operations_control_completion.sql`.
 
-See `RELEASE_NOTES_v0.11.0.md`, `TECHNICAL_ANALYSIS_v0.11.0.md` and `DEPLOYMENT_CHECKLIST_v0.11.0.md`.
+See `RELEASE_NOTES_v0.11.1.md`, `TECHNICAL_ANALYSIS_v0.11.1.md` and `DEPLOYMENT_CHECKLIST_v0.11.1.md`.
+
+
+## v0.11.1 reliability repair
+
+- Browser CORS preflight explicitly allows `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE` and `OPTIONS`. This repairs Merchant/Platform browser mutations such as `PUT /v1/merchant/customer-experience/draft`.
+- The allowed request headers explicitly include `Authorization`, `Content-Type`, `X-Tenant-Slug` and `X-Store-Id`.
+- Cloudflare R2 is supported as the production media storage driver. New production uploads no longer have to depend on Render's ephemeral local filesystem.
+- Public media responses explicitly allow cross-origin resource embedding.
+- Existing missing LOCAL asset bytes cannot be reconstructed automatically; stale assets must be re-uploaded/reselected after R2 is configured.
+
+### Production CORS acceptance
+
+An OPTIONS request for a `PUT`, `PATCH`, or `DELETE` browser call must return the requested method in `access-control-allow-methods`. A configured origin alone is not enough.
+
+### Production media
+
+For Render production, configure `ASSET_STORAGE_DRIVER=R2` plus the R2 credentials in `.env.example`. `LOCAL` remains supported for development/testing.
 
 ## Current control surface
 

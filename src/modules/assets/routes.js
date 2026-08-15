@@ -4,7 +4,7 @@ import { PERMISSIONS } from '../../core/permissions.js';
 import { publicId, uuid } from '../../core/identifiers.js';
 import { writeAudit } from '../../core/audit.js';
 import { resolveStore } from '../catalog/service.js';
-import { allowedMime, extensionForMime, hasExpectedSignature, mediaTypeForMime, safeOriginalFilename, statLocalAsset, streamLocalAsset, writeLocalAsset } from './storage.js';
+import { allowedMime, extensionForMime, fetchR2Asset, hasExpectedSignature, mediaTypeForMime, safeOriginalFilename, statLocalAsset, storagePublicUrl, streamLocalAsset, writeAsset } from './storage.js';
 
 const storeHeader=(request)=>request.headers['x-store-id']||null;
 const uploadTypes=['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm'];
@@ -14,13 +14,17 @@ async function resolveAsset(db, tenantId, storeId, ref, {activeOnly=true}={}) {
   const r=await db.query(`SELECT * FROM media_assets WHERE tenant_id=$1 AND store_id=$2 AND public_id=$3${activeOnly?" AND status='ACTIVE'":''}`,[tenantId,storeId,ref]);
   if(!r.rowCount) throw errors.notFound('ASSET_NOT_FOUND','Media asset not found'); return r.rows[0];
 }
-function publicAssetUrl(config, publicID){return `${config.assetPublicBaseUrl}/v1/assets/public/${encodeURIComponent(publicID)}`;}
 
 async function sendAsset(app, request, reply, asset) {
+  reply.header('Accept-Ranges','bytes').header('Cache-Control',asset.visibility==='PUBLIC'?'public, max-age=3600':'private, no-store').header('Cross-Origin-Resource-Policy','cross-origin').type(asset.mime_type);
+  const range=request.headers.range||'';
+  if(asset.storage_provider==='R2'){
+    const remote=await fetchR2Asset(app.config,asset.storage_key,{range}).catch(()=>null);if(!remote)throw errors.notFound('ASSET_CONTENT_NOT_FOUND','Asset content not found');
+    if(remote.status===206){reply.code(206);if(remote.contentRange)reply.header('Content-Range',remote.contentRange);}
+    if(remote.size)reply.header('Content-Length',String(remote.size));return reply.send(remote.body);
+  }
   if(asset.storage_provider!=='LOCAL') throw errors.unavailable('ASSET_STORAGE_UNAVAILABLE','Asset storage provider is unavailable');
   const s=await statLocalAsset(app.config,asset.storage_key).catch(()=>null); if(!s) throw errors.notFound('ASSET_CONTENT_NOT_FOUND','Asset content not found');
-  reply.header('Accept-Ranges','bytes').header('Cache-Control',asset.visibility==='PUBLIC'?'public, max-age=3600':'private, no-store').header('Cross-Origin-Resource-Policy','cross-origin').type(asset.mime_type);
-  const range=request.headers.range;
   if(range){const m=/^bytes=(\d*)-(\d*)$/.exec(range);if(!m)return reply.code(416).header('Content-Range',`bytes */${s.size}`).send();let start=m[1]?Number(m[1]):0;let end=m[2]?Number(m[2]):s.size-1;if(!m[1]&&m[2]){const suffix=Number(m[2]);start=Math.max(0,s.size-suffix);end=s.size-1;}if(start<0||end<start||start>=s.size)return reply.code(416).header('Content-Range',`bytes */${s.size}`).send();end=Math.min(end,s.size-1);reply.code(206).header('Content-Range',`bytes ${start}-${end}/${s.size}`).header('Content-Length',String(end-start+1));return reply.send(streamLocalAsset(app.config,asset.storage_key,{start,end}));}
   reply.header('Content-Length',String(s.size)); return reply.send(streamLocalAsset(app.config,asset.storage_key));
 }
@@ -33,9 +37,9 @@ export async function merchantAssetRoutes(app) {
     if(!Buffer.isBuffer(request.body)||!request.body.length) throw errors.badRequest('ASSET_FILE_REQUIRED','Upload body is empty');
     const mediaType=mediaTypeForMime(mime); const limit=mediaType==='IMAGE'?app.config.assetImageMaxBytes:app.config.assetVideoMaxBytes; if(request.body.length>limit) throw errors.badRequest('ASSET_FILE_TOO_LARGE',`${mediaType==='IMAGE'?'Image':'Video'} exceeds configured upload limit`);
     if(!hasExpectedSignature(request.body,mime)) throw errors.badRequest('ASSET_SIGNATURE_INVALID','Uploaded bytes do not match the declared media type');
-    const store=await resolveStore(app.db,request.auth.tenantId,storeHeader(request),{requireActive:false}); const publicID=publicId('ast'); const ext=extensionForMime(mime); const storageKey=`${request.auth.tenantId}/${store.id}/${publicID}${ext}`; const visibility=request.query.visibility||'PUBLIC'; const url=visibility==='PUBLIC'?publicAssetUrl(app.config,publicID):null; const digest=createHash('sha256').update(request.body).digest('hex');
-    await writeLocalAsset(app.config,storageKey,request.body);
-    const row=await app.db.transaction(async(client)=>{const id=uuid();const r=await client.query(`INSERT INTO media_assets(id,public_id,tenant_id,store_id,storage_provider,storage_key,visibility,media_type,mime_type,original_filename,file_size,sha256,url,uploaded_by) VALUES($1,$2,$3,$4,'LOCAL',$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING public_id,visibility,media_type,mime_type,original_filename,file_size,sha256,url,status,created_at`,[id,publicID,request.auth.tenantId,store.id,storageKey,visibility,mediaType,mime,safeOriginalFilename(request.query.filename),request.body.length,digest,url,request.auth.actorId]);await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'assets.upload',targetType:'media_asset',targetId:id,metadata:{public_id:publicID,media_type:mediaType,visibility,mime_type:mime,file_size:request.body.length},requestIp:request.ip,requestId:request.id});return r.rows[0];});
+    const store=await resolveStore(app.db,request.auth.tenantId,storeHeader(request),{requireActive:false}); const publicID=publicId('ast'); const ext=extensionForMime(mime); const storageKey=`${request.auth.tenantId}/${store.id}/${publicID}${ext}`; const visibility=request.query.visibility||'PUBLIC'; const provider=app.config.assetStorageDriver; const url=visibility==='PUBLIC'?storagePublicUrl(app.config,storageKey,publicID):null; const digest=createHash('sha256').update(request.body).digest('hex');
+    await writeAsset(app.config,storageKey,request.body,mime);
+    const row=await app.db.transaction(async(client)=>{const id=uuid();const r=await client.query(`INSERT INTO media_assets(id,public_id,tenant_id,store_id,storage_provider,storage_key,visibility,media_type,mime_type,original_filename,file_size,sha256,url,uploaded_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING public_id,visibility,media_type,mime_type,original_filename,file_size,sha256,url,status,created_at`,[id,publicID,request.auth.tenantId,store.id,provider,storageKey,visibility,mediaType,mime,safeOriginalFilename(request.query.filename),request.body.length,digest,url,request.auth.actorId]);await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'assets.upload',targetType:'media_asset',targetId:id,metadata:{public_id:publicID,media_type:mediaType,visibility,mime_type:mime,file_size:request.body.length,storage_provider:provider},requestIp:request.ip,requestId:request.id});return r.rows[0];});
     return reply.code(201).send({data:{asset:row}});
   });
 
@@ -47,5 +51,6 @@ export async function merchantAssetRoutes(app) {
 }
 
 export async function publicAssetRoutes(app){
+  app.addHook('onSend',async(_request,reply,payload)=>{reply.header('Cross-Origin-Resource-Policy','cross-origin');return payload;});
   app.get('/v1/assets/public/:assetId',async(request,reply)=>{const r=await app.db.query("SELECT * FROM media_assets WHERE public_id=$1 AND visibility='PUBLIC' AND status='ACTIVE' LIMIT 1",[request.params.assetId]);if(!r.rowCount)throw errors.notFound('ASSET_NOT_FOUND','Media asset not found');return sendAsset(app,request,reply,r.rows[0]);});
 }

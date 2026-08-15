@@ -1,0 +1,14 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';
+const read=p=>fs.readFileSync(p,'utf8').replace(/\r\n?/g,'\n');
+const pkg=JSON.parse(read('package.json'));const app=read('src/app.js');const config=read('src/config.js');const assets=read('src/modules/assets/routes.js');const storage=read('src/modules/assets/storage.js');const experience=read('src/modules/customer-experience/merchant-routes.js');
+const tests=[];const test=(name,fn)=>tests.push([name,fn]);
+test('release is v0.11.1',()=>assert.equal(pkg.version,'0.11.1'));
+test('runtime release marker identifies Customer Experience reliability repair',()=>assert.match(config,/0\.11\.1-customer-experience-reliability/));
+test('global CORS explicitly allows browser mutation methods',()=>{assert.match(app,/methods:\s*\['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS'\]/);for(const h of ['Authorization','Content-Type','X-Tenant-Slug','X-Store-Id'])assert.ok(app.includes(`'${h}'`),`missing CORS header ${h}`)});
+test('CORS exposes request id and caches preflight safely',()=>{assert.match(app,/exposedHeaders:\s*\['X-Request-Id'\]/);assert.match(app,/maxAge:\s*600/);assert.match(app,/strictPreflight:\s*true/)});
+test('Customer Experience draft remains a PUT route',()=>assert.match(experience,/app\.put\('\/v1\/merchant\/customer-experience\/draft'/));
+test('asset storage accepts LOCAL and R2 drivers',()=>{assert.match(config,/\['LOCAL','R2'\]/);for(const x of ['R2_ACCOUNT_ID','R2_BUCKET','R2_ACCESS_KEY_ID','R2_SECRET_ACCESS_KEY'])assert.ok(config.includes(x),`missing ${x}`)});
+test('R2 storage uses signed S3 compatible requests without adding a runtime dependency',()=>{for(const x of ['AWS4-HMAC-SHA256','r2.cloudflarestorage.com','writeR2Asset','fetchR2Asset'])assert.ok(storage.includes(x),`missing ${x}`)});
+test('new uploads persist selected storage provider',()=>{assert.match(assets,/const provider=app\.config\.assetStorageDriver/);assert.match(assets,/storage_provider,storage_key/);assert.match(assets,/writeAsset\(app\.config,storageKey,request\.body,mime\)/)});
+test('public asset responses override helmet CORP for storefront embedding',()=>{assert.match(assets,/Cross-Origin-Resource-Policy','cross-origin'/);assert.match(assets,/publicAssetRoutes[\s\S]*addHook\('onSend'/)});
+let passed=0;for(const[n,f]of tests){try{f();passed++;console.log(`PASS ${n}`)}catch(e){console.error(`FAIL ${n}`);throw e}}console.log(`${passed}/${tests.length} Luke Shop Backend v0.11.1 Customer Experience Reliability checks passed`);
