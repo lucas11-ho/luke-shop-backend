@@ -12,7 +12,7 @@ const delivery=read('src/modules/delivery/merchant-routes.js');
 const experience=read('src/modules/customer-experience/service.js');
 const config=read('src/config.js');const platform=read('src/modules/platform/control-routes.js');const storefront=read('src/modules/storefront/context.js');
 const tests=[];const test=(n,f)=>tests.push([n,f]);
-test('release carries v0.12.0 forward',()=>assert.ok(['0.12.0','0.13.0'].includes(pkg.version)));
+test('release carries v0.12.0 forward',()=>assert.ok(['0.12.0','0.13.0','0.14.0'].includes(pkg.version)));
 test('release marker identifies delivery-location status visual release',()=>assert.match(config,/(?:0\.12\.0-delivery-location-status-visuals|0\.13\.0-identity-fulfillment-notifications)/));
 test('migration 013 is additive and present',()=>assert.match(mig,/Customer Delivery Location \+ Status Visual System/));
 test('saved addresses persist precise coordinates and accuracy',()=>{for(const k of ['latitude','longitude','accuracy_meters','location_source','location_updated_at'])assert.ok(mig.includes(k),`missing ${k}`)});

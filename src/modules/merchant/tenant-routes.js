@@ -1,4 +1,5 @@
 import { PERMISSIONS } from '../../core/permissions.js';
+import { errors } from '../../core/errors.js';
 import { writeAudit } from '../../core/audit.js';
 import { getTenantById } from '../tenants/service.js';
 import { createStore, listStores, updateStore } from '../stores/service.js';
@@ -12,6 +13,18 @@ const storeBody = {
     template_key: { type: 'string', minLength: 2, maxLength: 80 },
   },
 };
+
+
+function normalizeCustomerServiceSettings(value,current={}){
+  const merged={...(current||{}),...(value||{})};
+  if(merged.provider && String(merged.provider).toUpperCase()!=='LUKE_CS')throw errors.badRequest('CUSTOMER_SERVICE_PROVIDER_INVALID','Only LUKE_CS is supported by the secure Shop support context gateway');
+  const chatUrl=String(merged.chat_url||'').trim();
+  if(chatUrl){let u;try{u=new URL(chatUrl);}catch{throw errors.badRequest('CUSTOMER_SERVICE_CHAT_URL_INVALID','Luke CS Chat URL must be a valid HTTPS URL');}if(u.protocol!=='https:'||u.username||u.password)throw errors.badRequest('CUSTOMER_SERVICE_CHAT_URL_INVALID','Luke CS Chat URL must use HTTPS without embedded credentials');u.hash='';merged.chat_url=u.toString();}
+  const route=String(merged.platform_route_key||'').trim().toLowerCase();
+  if(route&&!/^[a-z0-9][a-z0-9_-]{1,79}$/.test(route))throw errors.badRequest('CUSTOMER_SERVICE_ROUTE_INVALID','Luke CS platform route key is invalid');
+  merged.platform_route_key=route||null;merged.provider='LUKE_CS';
+  return merged;
+}
 
 export async function merchantTenantRoutes(app) {
   app.get('/v1/merchant/stores', {
@@ -92,7 +105,7 @@ export async function merchantTenantRoutes(app) {
         timezone: body.timezone ?? row.timezone,
         branding: body.branding ? { ...row.branding, ...body.branding } : row.branding,
         modules: body.modules ? { ...row.modules, ...body.modules } : row.modules,
-        customerService: body.customer_service ? { ...row.customer_service, ...body.customer_service } : row.customer_service,
+        customerService: body.customer_service ? normalizeCustomerServiceSettings(body.customer_service,row.customer_service) : row.customer_service,
       };
       if(body.customer_identity){const nextPrefix=body.customer_identity.id_prefix??identityCurrent.id_prefix;const nextAuth={...(identityCurrent.auth_config||{}),...(body.customer_identity.auth_config||{})};const effective=effectiveAuthOptions({id_prefix:nextPrefix,auth_config:nextAuth},app.config);if(!Object.values(effective.methods).some(method=>method.enabled))throw errors.conflict('CUSTOMER_AUTH_METHOD_REQUIRED','At least one production-ready customer login method must remain enabled');await client.query('UPDATE tenant_customer_identity_settings SET id_prefix=$1,auth_config=$2::jsonb,updated_at=now() WHERE tenant_id=$3',[nextPrefix,JSON.stringify(nextAuth),request.auth.tenantId]);}
       const updated = await client.query(

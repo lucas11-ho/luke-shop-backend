@@ -9,7 +9,7 @@ const merchant=read('src/modules/merchant/tenant-routes.js');
 const catalog=read('src/modules/catalog/storefront-routes.js');
 const provisioning=read('src/modules/platform/provisioning.js');
 const tests=[];const test=(name,fn)=>tests.push([name,fn]);
-test('release is v0.10.0',()=>assert.ok(['0.10.0','0.11.0','0.11.1','0.12.0','0.13.0'].includes(pkg.version)));
+test('release is v0.10.0',()=>assert.ok(['0.10.0','0.11.0','0.11.1','0.12.0','0.13.0','0.14.0'].includes(pkg.version)));
 test('release marker is Store Designer v3',()=>assert.match(config,/(?:0\.10\.0-store-designer-v3|0\.11\.0-operations-control-completion|0\.11\.1-customer-experience-reliability|0\.12\.0-delivery-location-status-visuals|0\.13\.0-identity-fulfillment-notifications)/));
 test('migration 011 advances default schema to v3',()=>assert.match(migration,/ALTER COLUMN schema_version SET DEFAULT 3/));
 test('migration 011 records base template and customized state',()=>{assert.match(migration,/base_template_key/);assert.match(migration,/template_customized/)});

@@ -43,8 +43,8 @@ export async function resolveSupportContext(app, request) {
     throw errors.forbidden('SUPPORT_CONTEXT_TENANT_MISMATCH', 'Support context does not belong to this tenant');
   }
   const found = await app.db.query(
-    `SELECT ctx.id,ctx.public_id,ctx.jti,ctx.tenant_id,ctx.customer_id,ctx.customer_session_id,ctx.store_id,ctx.allowed_tools,
-            c.public_id AS customer_public_id,c.display_name,c.status AS customer_status,
+    `SELECT ctx.id,ctx.public_id,ctx.jti,ctx.tenant_id,ctx.customer_id,ctx.customer_session_id,ctx.store_id,ctx.allowed_tools,ctx.page_path,ctx.current_order_id,ctx.locale,ctx.customer_code_snapshot,
+            c.public_id AS customer_public_id,c.customer_code,c.display_name,c.status AS customer_status,
             s.public_id AS store_public_id,s.name AS store_name
        FROM customer_service_contexts ctx
        JOIN customers c ON c.id=ctx.customer_id AND c.tenant_id=ctx.tenant_id
@@ -60,5 +60,10 @@ export async function resolveSupportContext(app, request) {
       || String(payload.store_id) !== String(row.store_id)) {
     throw errors.unauthorized('SUPPORT_CONTEXT_INVALID', 'Support context binding is invalid');
   }
-  request.supportContext = row;
+  if(payload.customer_code && row.customer_code_snapshot && String(payload.customer_code)!==String(row.customer_code_snapshot))throw errors.unauthorized('SUPPORT_CONTEXT_INVALID','Support context customer code binding is invalid');
+  if(payload.current_order_ref && row.current_order_id){
+    const order=(await app.db.query('SELECT public_id,order_number FROM orders WHERE tenant_id=$1 AND store_id=$2 AND id=$3 AND customer_id=$4 LIMIT 1',[row.tenant_id,row.store_id,row.current_order_id,row.customer_id])).rows[0];
+    if(!order||![order.public_id,order.order_number].includes(String(payload.current_order_ref)))throw errors.unauthorized('SUPPORT_CONTEXT_INVALID','Support context order binding is invalid');
+  }
+  request.supportContext = { ...row, current_order_ref: payload.current_order_ref || null };
 }

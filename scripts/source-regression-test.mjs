@@ -41,7 +41,7 @@ const merchantAccess = read('src/modules/merchant/access-routes.js');
 const merchantAccessService = read('src/modules/merchant/access-service.js');
 
 // The foundation migration is immutable across the catalog release.
-test('release remains compatible through v0.9.0', () => assert.ok(['0.9.0','0.10.0','0.11.0','0.11.1','0.12.0','0.13.0'].includes(pkg.version)));
+test('release remains compatible through v0.9.0', () => assert.ok(['0.9.0','0.10.0','0.11.0','0.11.1','0.12.0','0.13.0','0.14.0'].includes(pkg.version)));
 test('Node 24+ is required', () => assert.match(pkg.engines.node, />=24/));
 test('Fastify v5 is pinned', () => assert.match(pkg.dependencies.fastify, /^5\./));
 test('migration 001 normalized content is immutable', () => {

@@ -20,7 +20,7 @@ function text(value, name, max = 200) {
 
 async function customerRow(app, request) {
   const result = await app.db.query(
-    `SELECT public_id,display_name,status,created_at
+    `SELECT public_id,customer_code,display_name,status,created_at
        FROM customers WHERE tenant_id=$1 AND id=$2`,
     [request.serviceAuth.tenantId, request.supportContext.customer_id],
   );
@@ -58,9 +58,10 @@ async function executeTool(app, request, tool, args) {
     case 'order.get': { const ref=text(args.order_ref,'order_ref',160); await assertOrderInContext(app,request,ref); return { targetType:'order',targetRef:ref,result:await orderDetails(app.db,tenantId,ref,{customerId,publicSafe:true}) }; }
     case 'order.status': { const ref=text(args.order_ref,'order_ref',160); const rows=await app.db.query(`SELECT o.public_id AS id,o.order_number,o.order_type,o.status,o.payment_status,o.currency,o.grand_total,o.created_at,o.updated_at,o.paid_at,o.cancelled_at,o.completed_at FROM orders o WHERE o.tenant_id=$1 AND o.store_id=$2 AND o.customer_id=$3 AND (o.public_id=$4 OR o.order_number=$4) LIMIT 1`,[tenantId,storeId,customerId,ref]);
       if(!rows.rowCount) throw errors.notFound('ORDER_NOT_FOUND','Order not found');
-      return { targetType:'order',targetRef:ref,result:rows.rows[0] }; }
+      const fulfillments=await fulfillmentDetails(app.db,tenantId,ref,{customerId});
+      return { targetType:'order',targetRef:ref,result:{...rows.rows[0],fulfillments:fulfillments.map(row=>({id:row.id,fulfillment_type:row.fulfillment_type,fulfillment_mode:row.fulfillment_mode,status:row.status,workflow:row.workflow,estimated_ready_at:row.estimated_ready_at,estimated_delivery_at:row.estimated_delivery_at,tracking_number:row.tracking_number,carrier:row.carrier,items:row.items}))} }; }
     case 'payment.status': { const ref=text(args.order_ref,'order_ref',160); await assertOrderInContext(app,request,ref); const payment=await paymentDetails(app.db,tenantId,ref,{customerId}); return { targetType:'order',targetRef:ref,result:{ id:payment.id,status:payment.status,amount:payment.amount,currency:payment.currency,payment_method:{id:payment.payment_method_id,code:payment.payment_method_code,name:payment.payment_method_name,type:payment.provider_type},paid_at:payment.paid_at,failed_at:payment.failed_at,cancelled_at:payment.cancelled_at,refunded_amount:payment.refunded_amount } }; }
-    case 'delivery.status': { const ref=text(args.order_ref,'order_ref',160); await assertOrderInContext(app,request,ref); const rows=await fulfillmentDetails(app.db,tenantId,ref,{customerId}); const safe=rows.map((row)=>({ id:row.id,fulfillment_mode:row.fulfillment_mode,status:row.status,carrier:row.carrier,tracking_number:row.tracking_number,estimated_at:row.estimated_at,shipped_at:row.shipped_at,delivered_at:row.delivered_at,delivery_method:{id:row.delivery_method_id,code:row.delivery_method_code,name:row.delivery_method_name} })); return { targetType:'order',targetRef:ref,result:{fulfillments:safe} }; }
+    case 'delivery.status': { const ref=text(args.order_ref,'order_ref',160); await assertOrderInContext(app,request,ref); const rows=await fulfillmentDetails(app.db,tenantId,ref,{customerId}); const safe=rows.map((row)=>({ id:row.id,fulfillment_type:row.fulfillment_type,fulfillment_mode:row.fulfillment_mode,status:row.status,workflow:row.workflow,allowed_transitions:row.allowed_transitions,carrier:row.carrier,tracking_number:row.tracking_number,estimated_at:row.estimated_at,estimated_ready_at:row.estimated_ready_at,estimated_delivery_at:row.estimated_delivery_at,shipped_at:row.shipped_at,delivered_at:row.delivered_at,items:row.items,delivery_method:{id:row.delivery_method_id,code:row.delivery_method_code,name:row.delivery_method_name} })); return { targetType:'order',targetRef:ref,result:{fulfillments:safe} }; }
     default: throw errors.badRequest('CS_TOOL_UNKNOWN','Unknown customer service tool');
   }
 }

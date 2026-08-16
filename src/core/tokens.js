@@ -73,6 +73,10 @@ export async function signSupportContext(config, context) {
     session_id: context.sessionId,
     store_id: context.storeId,
     store_public_id: context.storePublicId,
+    customer_code: context.customerCode || null,
+    page_path: context.pagePath || null,
+    current_order_ref: context.currentOrderRef || null,
+    locale: context.locale || null,
     allowed_tools: context.allowedTools || [],
   })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })

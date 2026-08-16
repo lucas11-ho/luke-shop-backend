@@ -1,0 +1,20 @@
+Backend v0.14.0 Commerce Connector v2
+
+Modified:
+- package.json / package-lock.json
+- README.md / API_CONTRACT.md
+- src/core/tokens.js
+- src/modules/integrations/customer-service/customer-context-routes.js
+- src/modules/integrations/customer-service/context.js
+- src/modules/integrations/customer-service/tool-routes.js
+- src/modules/storefront/context.js
+- src/modules/merchant/tenant-routes.js
+- historical regression version-forward compatibility checks
+
+Added:
+- migrations/015_luke_commerce_connector_v2.sql
+- scripts/v0.14.0-commerce-connector-v2-regression-test.mjs
+- RELEASE_NOTES_v0.14.0.md
+- TECHNICAL_ANALYSIS_v0.14.0.md
+- DEPLOYMENT_CHECKLIST_v0.14.0.md
+- TEST_RESULT_v0.14.0.md

@@ -88,3 +88,12 @@ Merchant controls:
 - `POST /v1/merchant/notifications/read-all`
 
 Customer UUIDs remain internal. `customer_code` is the readable tenant-scoped identifier. Fulfillment groups are bound to `fulfillment_type`, and merchant fulfillment responses expose only valid `allowed_transitions` for that type.
+
+
+## Commerce Connector v2 — v0.14.0
+
+Customer Web obtains a short-lived signed support context with `POST /v1/customer/support/context`. The optional `order_ref` is resolved server-side and must belong to the authenticated customer in the resolved store. The token may carry a customer code, page path, locale and verified current-order hint, but does not expose email, phone, password or payment secrets.
+
+Server-to-server Luke CS access uses the existing credential exchange `POST /v1/customer-service/auth/token`, then `POST /v1/customer-service/tools/execute` with a short-lived service JWT, `X-Luke-Shop-Context`, fresh request timestamp and nonce. v0.14.0 supports the existing read-only tool policy and enriches `order.status` / `delivery.status` with fulfillment-aware facts.
+
+Storefront customer-service configuration may expose `chat_url`, `platform_route_key` and `commerce_context_version`; no long-lived credential is ever returned by a storefront endpoint.

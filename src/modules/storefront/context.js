@@ -97,6 +97,9 @@ export async function storefrontPayload(db, { tenant, store, source = 'HEADER', 
     customer_service: {
       enabled: Boolean(tenant.customer_service?.enabled), provider: tenant.customer_service?.provider || null,
       placement: tenant.customer_service?.placement || {}, label: tenant.customer_service?.label || 'Customer Support',
+      chat_url: /^https:\/\//i.test(String(tenant.customer_service?.chat_url||'')) ? String(tenant.customer_service.chat_url) : null,
+      platform_route_key: String(tenant.customer_service?.platform_route_key||'').trim() || null,
+      commerce_context_version: 2,
     },
   };
 }
