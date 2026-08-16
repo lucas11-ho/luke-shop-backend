@@ -3,6 +3,7 @@ import { errors } from '../../core/errors.js';
 import { normalizeSlug } from '../../core/identifiers.js';
 import { getTenantBySlug } from '../tenants/service.js';
 import { resolveStore, resolveStoreBySlug } from '../catalog/service.js';
+import { resolveStatusVisualPack } from '../customer-experience/service.js';
 
 export function normalizeHostname(value) {
   const host = String(value || '').trim().toLowerCase().replace(/\.$/, '').split(':')[0];
@@ -65,30 +66,6 @@ export async function resolvePublicStorefront(db, config, { tenantSlug = null, s
   throw errors.badRequest('STOREFRONT_CONTEXT_REQUIRED', 'Tenant route or storefront hostname is required');
 }
 
-// Resolves the experience's stored typography *preset key* into the actual font stacks and
-// (optional) webfont delivery URL from the platform catalog, so the storefront renderer never
-// has to guess at a font from the key alone. Additive only — never removes/renames existing
-// typography fields, so older cached clients keep working against `typography.preset`.
-async function withResolvedTypography(db, experience) {
-  const presetKey = experience?.typography?.preset;
-  if (!presetKey) return experience;
-  const result = await db.query(
-    `SELECT heading_stack, body_stack, settings FROM platform_typography_presets WHERE key=$1 AND status='ACTIVE' LIMIT 1`,
-    [presetKey],
-  );
-  const preset = result.rows[0];
-  if (!preset) return experience;
-  return {
-    ...experience,
-    typography: {
-      ...experience.typography,
-      heading_stack: preset.heading_stack || null,
-      body_stack: preset.body_stack || null,
-      web_css_url: preset.settings?.web_css_url || null,
-    },
-  };
-}
-
 export async function storefrontPayload(db, { tenant, store, source = 'HEADER', hostname = null, experience = null, experienceVersion = null, preview = false }) {
   const [experienceResult, profileResult] = await Promise.all([
     experience ? Promise.resolve({ rows: [{ config: experience, version: experienceVersion }] }) : db.query(
@@ -99,8 +76,13 @@ export async function storefrontPayload(db, { tenant, store, source = 'HEADER', 
   ]);
   const capRow = profileResult.rows[0] || {};
   const capabilities = { ...(capRow.plan || {}), ...(capRow.overrides || {}) };
+  const rawExperience = experienceResult.rows[0]?.config || null;
+  const statusVisualPack = rawExperience ? await resolveStatusVisualPack(db, rawExperience) : null;
+  const publicExperience = rawExperience ? {
+    ...rawExperience,
+    status_visuals: statusVisualPack ? { pack_key: statusVisualPack.key, name: statusVisualPack.name, icons: statusVisualPack.icons || {}, settings: statusVisualPack.settings || {} } : null,
+  } : null;
   const storePath = `/t/${tenant.slug}${store.is_primary || !store.slug || store.slug === 'main' ? '' : `/s/${store.slug}`}`;
-  const resolvedExperience = await withResolvedTypography(db, experienceResult.rows[0]?.config || null);
   return {
     tenant: {
       id: tenant.public_id, slug: tenant.slug, name: tenant.name,
@@ -110,7 +92,7 @@ export async function storefrontPayload(db, { tenant, store, source = 'HEADER', 
     store: { id: store.public_id, slug: store.slug || null, name: store.name, is_primary: store.is_primary },
     routing: { source, hostname, storefront_path: storePath, preview: Boolean(preview) },
     channels: { customer_web: capabilities.customer_web !== false, customer_mobile: capabilities.customer_mobile !== false },
-    experience: resolvedExperience,
+    experience: publicExperience,
     experience_version: experienceResult.rows[0]?.version || null,
     customer_service: {
       enabled: Boolean(tenant.customer_service?.enabled), provider: tenant.customer_service?.provider || null,

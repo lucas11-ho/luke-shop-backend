@@ -1,3 +1,0 @@
-# Keep SQL migration and regression source text stable across Windows/Linux checkouts.
-*.sql text eol=lf
-*.mjs text eol=lf

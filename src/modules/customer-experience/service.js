@@ -19,6 +19,20 @@ const THEME_DEFAULT = Object.freeze({
 const TYPOGRAPHY_DEFAULT = Object.freeze({ preset:'SYSTEM_MINIMAL', heading_scale:'normal', body_scale:'normal', letter_spacing:'normal', button_case:'none' });
 const LAYOUT_DEFAULT = Object.freeze({ header:'logo_left', hero:'split', categories:'cards', product_grid:'four', product_card:'standard', mobile_nav:'standard' });
 const RESPONSIVE_DEFAULT = Object.freeze({ product_columns:{ desktop:4, tablet:3, mobile:2 }, hero_media_position:{ desktop:'right', tablet:'right', mobile:'below' } });
+export const STATUS_VISUAL_PACKS = Object.freeze(['AUTO','MODERN','FASHION_LUXURY','RESTAURANT_MODERN','ELECTRONICS_PRO','GROCERY_CLEAN','DIGITAL_CREATOR']);
+export const STATUS_VISUAL_ICON_KEYS = Object.freeze(['clock','alert-triangle','check-circle','cog','package','shopping-bag','truck','scooter','package-check','gift','receipt','chef-hat','home','radar','x-circle','unlock','sparkles','download']);
+export const STATUS_VISUAL_STATUSES = Object.freeze(['PENDING','PENDING_PAYMENT','PAYMENT_FAILED','PAID','CONFIRMED','PROCESSING','RESTAURANT_ACCEPTED','PREPARING','READY','SHIPPED','OUT_FOR_DELIVERY','PICKED_UP','DELIVERED','COMPLETED','FULFILLED','FAILED','CANCELLED','REFUNDED','ACCESS_GRANTED','AVAILABLE','DOWNLOADED']);
+const STATUS_VISUAL_PRESET_MAP = Object.freeze({ luxury:'FASHION_LUXURY',fashion:'FASHION_LUXURY',fashion_modern:'FASHION_LUXURY',bold:'FASHION_LUXURY',restaurant:'RESTAURANT_MODERN',fast_food:'RESTAURANT_MODERN',cafe:'RESTAURANT_MODERN',electronics:'ELECTRONICS_PRO',grocery:'GROCERY_CLEAN',creator:'DIGITAL_CREATOR',modern:'MODERN',ios_minimal:'MODERN',general:'MODERN' });
+export function resolveStatusVisualPackKey(config = {}) {
+  const explicit = String(config?.status_visual_pack || 'AUTO').toUpperCase();
+  if (explicit !== 'AUTO' && STATUS_VISUAL_PACKS.includes(explicit)) return explicit;
+  return STATUS_VISUAL_PRESET_MAP[String(config?.theme?.preset || '').toLowerCase()] || 'MODERN';
+}
+export async function resolveStatusVisualPack(db, config = {}) {
+  const key = resolveStatusVisualPackKey(config);
+  const result = await db.query(`SELECT key,name,business_type,status,icons,settings FROM platform_status_visual_packs WHERE key=$1 AND status='ACTIVE'`, [key]);
+  return result.rows[0] || { key:'MODERN', name:'Modern', business_type:'GENERAL', status:'ACTIVE', icons:{}, settings:{} };
+}
 
 function normalizeSlides(value = []) {
   if (!Array.isArray(value)) return [];
@@ -57,6 +71,7 @@ export function normalizeExperienceConfig(input = {}) {
   const navigation = Array.isArray(raw.navigation) ? raw.navigation.filter((item) => NAV.has(item)).slice(0, 5) : ['home','explore','cart','orders','profile'];
   return {
     schema_version: 3,
+    status_visual_pack: oneOf(String(raw.status_visual_pack || 'AUTO').toUpperCase(), STATUS_VISUAL_PACKS, 'AUTO'),
     theme: {
       preset: text(theme.preset || THEME_DEFAULT.preset, 60),
       primary: color(theme.primary, THEME_DEFAULT.primary), secondary: color(theme.secondary, THEME_DEFAULT.secondary), accent: color(theme.accent, theme.primary || THEME_DEFAULT.accent),
@@ -162,11 +177,12 @@ export async function loadExperience(db, tenantId, storeId) {
 }
 
 export async function loadExperienceCatalog(db) {
-  const [templates, typography] = await Promise.all([
+  const [templates, typography, statusPacks] = await Promise.all([
     db.query(`SELECT public_id AS id,key,name,business_type,status,config,updated_at FROM platform_storefront_templates WHERE status='ACTIVE' ORDER BY business_type,name`),
     db.query(`SELECT key,name,category,heading_stack,body_stack,settings FROM platform_typography_presets WHERE status='ACTIVE' ORDER BY category,name`),
+    db.query(`SELECT key,name,business_type,status,icons,settings FROM platform_status_visual_packs WHERE status='ACTIVE' ORDER BY business_type,name`),
   ]);
-  return { templates: templates.rows, typography_presets: typography.rows };
+  return { templates: templates.rows, typography_presets: typography.rows, status_visual_packs: [{ key:'AUTO',name:'Automatic',business_type:'TEMPLATE',status:'ACTIVE',icons:{},settings:{} }, ...statusPacks.rows] };
 }
 
 export async function updateDraft(client, { tenantId, storeId, actorId, config, templateKey = undefined, templateCustomized = undefined }) {
@@ -207,7 +223,7 @@ export async function applyExperienceTemplate(client, { tenantId, storeId, actor
   const tpl = template.rows[0].config || {};
   let next;
   if (mode === 'layout') next = mergeObjects(current, { layout: tpl.layout || {}, responsive: tpl.responsive || {}, home: keepContent ? current.home : tpl.home || current.home });
-  else if (mode === 'theme') next = mergeObjects(current, { theme: tpl.theme || {}, typography: tpl.typography || {} });
+  else if (mode === 'theme') next = mergeObjects(current, { theme: tpl.theme || {}, typography: tpl.typography || {}, status_visual_pack: tpl.status_visual_pack || 'AUTO' });
   else next = keepContent ? preserveMerchantContent(tpl, current) : mergeObjects(tpl, {});
   return updateDraft(client,{ tenantId, storeId, actorId, config:next, templateKey, templateCustomized:mode !== 'full' });
 }

@@ -1,9 +1,9 @@
 {
   "name": "luke-shop-backend",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "private": true,
   "type": "module",
-  "description": "Luke Shop multi-tenant commerce backend with Customer Experience reliability and production media repair",
+  "description": "Luke Shop multi-tenant commerce backend with customer delivery location, live sharing and theme status visual controls",
   "engines": {
     "node": ">=24 <27"
   },
@@ -15,7 +15,7 @@
     "bootstrap:tenant": "node --env-file=.env src/scripts/bootstrap-tenant.js",
     "check": "node scripts/check-source.mjs",
     "test:source": "node scripts/source-regression-test.mjs",
-    "verify": "npm run check && npm run test:source && npm run test:auth:source && npm run test:http:core && npm run test:http:source && npm run test:catalog:source && npm run test:orders:core && npm run test:orders:source && npm run test:commerce:core && npm run test:commerce:source && npm run test:runtime:source && npm run test:commerce-defaults:core && npm run test:commerce-runtime:source && npm run test:cs-policy:core && npm run test:cs-connector:source && npm run test:staff-rbac:source && npm run test:platform:source && npm run test:routing:source && npm run test:assets:source && npm run test:experience-v2:source && npm run test:experience-v3:source && npm run test:operations-v011 && npm run test:experience-reliability-v0111",
+    "verify": "npm run check && npm run test:source && npm run test:auth:source && npm run test:http:core && npm run test:http:source && npm run test:catalog:source && npm run test:orders:core && npm run test:orders:source && npm run test:commerce:core && npm run test:commerce:source && npm run test:runtime:source && npm run test:commerce-defaults:core && npm run test:commerce-runtime:source && npm run test:cs-policy:core && npm run test:cs-connector:source && npm run test:staff-rbac:source && npm run test:platform:source && npm run test:routing:source && npm run test:assets:source && npm run test:experience-v2:source && npm run test:experience-v3:source && npm run test:operations-v011 && npm run test:experience-reliability-v0111 && npm run test:delivery-location-v012",
     "ci": "npm run verify",
     "test:db": "node --env-file=.env.ci scripts/db-smoke-test.mjs",
     "test:auth-db": "node --env-file=.env.ci scripts/auth-lifecycle-test.mjs",
@@ -54,7 +54,8 @@
     "test:experience-v2:source": "node scripts/v0.9.0-experience-commerce-workflow-regression-test.mjs",
     "test:experience-v3:source": "node scripts/v0.10.0-store-designer-v3-regression-test.mjs",
     "test:operations-v011": "node scripts/v0.11.0-operations-control-completion-regression-test.mjs",
-    "test:experience-reliability-v0111": "node scripts/v0.11.1-customer-experience-reliability-regression-test.mjs"
+    "test:experience-reliability-v0111": "node scripts/v0.11.1-customer-experience-reliability-regression-test.mjs",
+    "test:delivery-location-v012": "node scripts/v0.12.0-delivery-location-status-visual-regression-test.mjs"
   },
   "dependencies": {
     "@fastify/cors": "11.3.0",

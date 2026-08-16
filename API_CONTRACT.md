@@ -1,77 +1,66 @@
-# Luke Shop Backend v0.11.0 — Current API Contract Summary
+# Luke Shop Backend v0.12.0 — Current API Contract Summary
 
 All tenant-sensitive operations are backend-authoritative. Merchant/customer requests are scoped by authenticated tenant context and optional validated store context. Platform Admin uses `/v1/platform/*` and never impersonates tenant headers. Luke CS uses its dedicated service boundary.
 
 ## Route inventory
 
-Current backend source exposes 187 HTTP routes:
+Current backend source exposes **194 HTTP routes**:
 - Merchant/Admin: 101
-- Platform Admin: 34
-- Customer: 27
+- Platform Admin: 36
+- Customer: 32
 - Storefront: 9
 - Luke CS service-to-service: 12
 - Health: 3
 - Public asset delivery: 1
 
-The coordinated cross-repo audit checks normal Merchant, Customer and Platform route surfaces against their corresponding UI clients. Internal/service, health, public-asset and compatibility endpoints are intentionally excluded from normal UI parity requirements.
+Internal/service, health and public-asset endpoints are not normal UI surfaces.
 
-## v0.11.0 operations/control additions
+## v0.12.0 delivery location
 
-### Merchant stores and audit
-- `GET /v1/merchant/stores`
-- `POST /v1/merchant/stores`
-- `PATCH /v1/merchant/stores/:storeRef`
-- `GET /v1/merchant/audit`
+Saved addresses and checkout accept optional:
+- `latitude`
+- `longitude`
+- `accuracy_meters`
+- `location_source` (`GPS`, `MAP_PIN`, `ADDRESS`)
 
-### Merchant self-service security
-- `GET/PATCH /v1/merchant/me`
-- `POST /v1/merchant/me/change-password`
-- `GET /v1/merchant/me/sessions`
-- `DELETE /v1/merchant/me/sessions/:sessionRef`
-- `POST /v1/merchant/me/sessions/revoke-others`
+Customer routes:
+- `PATCH /v1/customer/me/addresses/:addressRef/location`
+- `PATCH /v1/customer/orders/:orderRef/delivery-location`
+- `POST /v1/customer/orders/:orderRef/live-location/start`
+- `POST /v1/customer/orders/:orderRef/live-location/ping`
+- `POST /v1/customer/orders/:orderRef/live-location/stop`
 
-### Customer self-service account
-- `GET/PATCH /v1/customer/me`
-- `GET/POST /v1/customer/me/addresses`
-- `PATCH/DELETE /v1/customer/me/addresses/:addressRef`
-- `POST /v1/customer/me/change-password`
-- `GET /v1/customer/me/sessions`
-- `DELETE /v1/customer/me/sessions/:sessionRef`
-- `POST /v1/customer/me/sessions/revoke-others`
+Live sessions are customer/order scoped, expire, are rate-limited and stop on terminal workflow states. Exact location is omitted from public-safe order reads.
 
-### Catalog, inventory and promotion completion
-- category update
-- inventory-location update
-- modifier-group/option update and deactivate
-- promotion-code update/deactivate
-- promotion-target removal
+## v0.12.0 fulfillment ETA
 
-### Payments and refunds
-- payment method create/update includes public `provider_key`, `public_config` and `sort_order`
-- `GET /v1/merchant/refunds`
-- `POST /v1/merchant/orders/:orderRef/refunds`
-- `PATCH /v1/merchant/refunds/:refundRef`
+Merchant fulfillment updates support separate:
+- `estimated_ready_at`
+- `estimated_delivery_at`
 
-Refund records use a controlled internal lifecycle. A `SUCCEEDED` record means an authorized operator has recorded the corresponding provider/operator result; this route does not itself call a third-party payment API.
+This prevents restaurant kitchen-ready estimates from being confused with delivery ETA.
 
-### Platform control completion
-- plan create/update
-- typography preset create/update
-- tenant store list/create/update
-- tenant regional settings (`currency`, `locale`, `timezone`) and internal notes
-- tenant owner identity/access update
-- Platform Owner self profile/password/session controls
-- custom-domain DNS TXT verification using backend DNS resolution
+## v0.12.0 platform status visuals
 
-## Existing core domains preserved
+Platform routes:
+- `GET /v1/platform/status-visual-packs`
+- `PATCH /v1/platform/status-visual-packs/:packKey`
 
-The release preserves catalog/products/variants/media, inventory ledger, cart/checkout/orders, payment attempts, delivery/fulfillment, promotions, Customer Experience v3, Media Library, Staff/RBAC, dynamic storefront resolution, signed draft preview and Luke CS service APIs.
+Canonical packs:
+`AUTO`, `MODERN`, `FASHION_LUXURY`, `RESTAURANT_MODERN`, `ELECTRONICS_PRO`, `GROCERY_CLEAN`, `DIGITAL_CREATOR`.
+
+The platform controls approved icon-name mappings. Templates set defaults, merchants may inherit/override, and Customer Web receives the resolved public mapping. Semantic order/fulfillment states are never replaced by theme/icon values.
+
+## Operations/control APIs carried forward
+
+v0.11.x store management, audit, Merchant/Platform self-security, customer profile/address/session controls, catalog/inventory completion, promotions, refunds, delivery/payment public configuration, DNS verification, Store Designer v3, R2 media, Staff/RBAC and Luke CS service APIs remain supported.
 
 ## Security and production boundaries
 
 - No direct frontend database access.
-- Tenant and store IDs are validated server-side.
+- Tenant/store/customer/order ownership is enforced server-side.
 - Permission checks remain route-authoritative.
-- Secrets must not be placed in public payment/delivery configuration.
-- Migration 012 is applied separately from the Windows source installer.
-- Customer forgot-password token delivery is not claimed without a configured external email/SMS provider.
+- Customer GPS/live sharing is optional and customer-controlled.
+- Public-safe APIs do not expose precise/live customer coordinates.
+- Migration 013 is applied separately from the Windows source installer.
+- Courier/driver GPS and map-provider integration are not claimed by this release.

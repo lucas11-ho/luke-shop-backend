@@ -198,7 +198,7 @@ export async function customerAuthRoutes(app) {
 
   app.get('/v1/customer/me/addresses', { preHandler: [app.requireCustomerAuth] }, async (request) => {
     const rows = await app.db.query(
-      `SELECT public_id AS id,label,recipient_name,phone,country_code,state,city,postal_code,address_line_1,address_line_2,delivery_note,is_default,created_at,updated_at
+      `SELECT public_id AS id,label,recipient_name,phone,country_code,state,city,postal_code,address_line_1,address_line_2,delivery_note,is_default,latitude,longitude,accuracy_meters,location_source,location_updated_at,created_at,updated_at
          FROM customer_addresses WHERE tenant_id=$1 AND customer_id=$2 ORDER BY is_default DESC,updated_at DESC`,
       [request.auth.tenantId, request.auth.actorId],
     );
@@ -213,7 +213,8 @@ export async function customerAuthRoutes(app) {
       state: { type: ['string','null'], maxLength: 160 }, city: { type: 'string', minLength: 1, maxLength: 160 },
       postal_code: { type: ['string','null'], maxLength: 40 }, address_line_1: { type: 'string', minLength: 1, maxLength: 300 },
       address_line_2: { type: ['string','null'], maxLength: 300 }, delivery_note: { type: ['string','null'], maxLength: 1000 },
-      is_default: { type: 'boolean' },
+      is_default: { type: 'boolean' }, latitude:{type:['number','null'],minimum:-90,maximum:90}, longitude:{type:['number','null'],minimum:-180,maximum:180},
+      accuracy_meters:{type:['number','null'],minimum:0,maximum:100000}, location_source:{type:['string','null'],enum:['GPS','MAP_PIN','ADDRESS',null]},
     } } },
   }, async (request, reply) => {
     const address = await app.db.transaction(async (client) => {
@@ -222,11 +223,12 @@ export async function customerAuthRoutes(app) {
       if (makeDefault) await client.query('UPDATE customer_addresses SET is_default=false,updated_at=now() WHERE tenant_id=$1 AND customer_id=$2', [request.auth.tenantId, request.auth.actorId]);
       const id = uuid(); const pid = publicId('addr');
       const row = await client.query(
-        `INSERT INTO customer_addresses(id,public_id,tenant_id,customer_id,label,recipient_name,phone,country_code,state,city,postal_code,address_line_1,address_line_2,delivery_note,is_default)
-         VALUES($1,$2,$3,$4,$5,$6,$7,upper($8),$9,$10,$11,$12,$13,$14,$15)
-         RETURNING public_id AS id,label,recipient_name,phone,country_code,state,city,postal_code,address_line_1,address_line_2,delivery_note,is_default,created_at,updated_at`,
+        `INSERT INTO customer_addresses(id,public_id,tenant_id,customer_id,label,recipient_name,phone,country_code,state,city,postal_code,address_line_1,address_line_2,delivery_note,is_default,latitude,longitude,accuracy_meters,location_source,location_updated_at)
+         VALUES($1,$2,$3,$4,$5,$6,$7,upper($8),$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,CASE WHEN $16::double precision IS NULL OR $17::double precision IS NULL THEN NULL ELSE now() END)
+         RETURNING public_id AS id,label,recipient_name,phone,country_code,state,city,postal_code,address_line_1,address_line_2,delivery_note,is_default,latitude,longitude,accuracy_meters,location_source,location_updated_at,created_at,updated_at`,
         [id,pid,request.auth.tenantId,request.auth.actorId,request.body.label.trim(),request.body.recipient_name.trim(),request.body.phone||null,request.body.country_code,
-          request.body.state||null,request.body.city.trim(),request.body.postal_code||null,request.body.address_line_1.trim(),request.body.address_line_2||null,request.body.delivery_note||null,makeDefault],
+          request.body.state||null,request.body.city.trim(),request.body.postal_code||null,request.body.address_line_1.trim(),request.body.address_line_2||null,request.body.delivery_note||null,makeDefault,
+          request.body.latitude??null,request.body.longitude??null,request.body.accuracy_meters??null,request.body.location_source||null],
       );
       await writeAudit(client, { tenantId: request.auth.tenantId, actorType: 'CUSTOMER', actorId: request.auth.actorId,
         action: 'customer.address.create', targetType: 'customer_address', targetId: id,
@@ -244,7 +246,8 @@ export async function customerAuthRoutes(app) {
       state: { type: ['string','null'], maxLength: 160 }, city: { type: 'string', minLength: 1, maxLength: 160 },
       postal_code: { type: ['string','null'], maxLength: 40 }, address_line_1: { type: 'string', minLength: 1, maxLength: 300 },
       address_line_2: { type: ['string','null'], maxLength: 300 }, delivery_note: { type: ['string','null'], maxLength: 1000 },
-      is_default: { type: 'boolean' },
+      is_default: { type: 'boolean' }, latitude:{type:['number','null'],minimum:-90,maximum:90}, longitude:{type:['number','null'],minimum:-180,maximum:180},
+      accuracy_meters:{type:['number','null'],minimum:0,maximum:100000}, location_source:{type:['string','null'],enum:['GPS','MAP_PIN','ADDRESS',null]},
     } } },
   }, async (request) => app.db.transaction(async (client) => {
     const found = await client.query('SELECT * FROM customer_addresses WHERE tenant_id=$1 AND customer_id=$2 AND public_id=$3 FOR UPDATE', [request.auth.tenantId, request.auth.actorId, request.params.addressRef]);
@@ -254,12 +257,15 @@ export async function customerAuthRoutes(app) {
     if (makeDefault) await client.query('UPDATE customer_addresses SET is_default=false,updated_at=now() WHERE tenant_id=$1 AND customer_id=$2 AND id<>$3', [request.auth.tenantId, request.auth.actorId, cur.id]);
     if (cur.is_default && b.is_default === false) throw errors.conflict('DEFAULT_ADDRESS_REQUIRED', 'Choose another default address before removing the default flag');
     const row = await client.query(
-      `UPDATE customer_addresses SET label=$1,recipient_name=$2,phone=$3,country_code=$4,state=$5,city=$6,postal_code=$7,address_line_1=$8,address_line_2=$9,delivery_note=$10,is_default=$11,updated_at=now()
-        WHERE tenant_id=$12 AND customer_id=$13 AND id=$14
-        RETURNING public_id AS id,label,recipient_name,phone,country_code,state,city,postal_code,address_line_1,address_line_2,delivery_note,is_default,created_at,updated_at`,
+      `UPDATE customer_addresses SET label=$1,recipient_name=$2,phone=$3,country_code=$4,state=$5,city=$6,postal_code=$7,address_line_1=$8,address_line_2=$9,delivery_note=$10,is_default=$11,
+        latitude=$12,longitude=$13,accuracy_meters=$14,location_source=$15,location_updated_at=CASE WHEN $12::double precision IS DISTINCT FROM latitude OR $13::double precision IS DISTINCT FROM longitude OR $14::double precision IS DISTINCT FROM accuracy_meters OR $15::text IS DISTINCT FROM location_source THEN now() ELSE location_updated_at END,updated_at=now()
+        WHERE tenant_id=$16 AND customer_id=$17 AND id=$18
+        RETURNING public_id AS id,label,recipient_name,phone,country_code,state,city,postal_code,address_line_1,address_line_2,delivery_note,is_default,latitude,longitude,accuracy_meters,location_source,location_updated_at,created_at,updated_at`,
       [b.label?.trim() ?? cur.label,b.recipient_name?.trim() ?? cur.recipient_name,Object.hasOwn(b,'phone')?b.phone:cur.phone,b.country_code?b.country_code.toUpperCase():cur.country_code,
         Object.hasOwn(b,'state')?b.state:cur.state,b.city?.trim() ?? cur.city,Object.hasOwn(b,'postal_code')?b.postal_code:cur.postal_code,b.address_line_1?.trim() ?? cur.address_line_1,
-        Object.hasOwn(b,'address_line_2')?b.address_line_2:cur.address_line_2,Object.hasOwn(b,'delivery_note')?b.delivery_note:cur.delivery_note,Boolean(makeDefault),request.auth.tenantId,request.auth.actorId,cur.id],
+        Object.hasOwn(b,'address_line_2')?b.address_line_2:cur.address_line_2,Object.hasOwn(b,'delivery_note')?b.delivery_note:cur.delivery_note,Boolean(makeDefault),
+        Object.hasOwn(b,'latitude')?b.latitude:cur.latitude,Object.hasOwn(b,'longitude')?b.longitude:cur.longitude,Object.hasOwn(b,'accuracy_meters')?b.accuracy_meters:cur.accuracy_meters,Object.hasOwn(b,'location_source')?b.location_source:cur.location_source,
+        request.auth.tenantId,request.auth.actorId,cur.id],
     );
     await writeAudit(client, { tenantId: request.auth.tenantId, actorType: 'CUSTOMER', actorId: request.auth.actorId,
       action: 'customer.address.update', targetType: 'customer_address', targetId: cur.id,

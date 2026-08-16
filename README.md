@@ -1,18 +1,25 @@
-# LUKE_SHOP_BACKEND — current release v0.11.1
+# LUKE_SHOP_BACKEND — current release v0.12.0
 
-**Customer Experience Reliability & Production Media Repair** · 2026-08-15
+**Delivery Intelligence & Platform-Managed Status Visuals** · 2026-08-16
 
 Luke Shop Backend is the tenant-authoritative commerce API for Merchant Admin, Customer Web, Platform Admin and the Luke CS service connector.
 
 Current coordinated frontend versions:
-- Merchant Admin v0.9.1
-- Customer Web v0.6.1
-- Platform Admin v0.4.0
+- Merchant Admin v0.10.0
+- Customer Web v0.7.0
+- Platform Admin v0.5.0
 
-Database baseline: migrations through `012_operations_control_completion.sql`.
+Database baseline: migrations through `013_customer_delivery_location_status_visuals.sql`.
 
-See `RELEASE_NOTES_v0.11.1.md`, `TECHNICAL_ANALYSIS_v0.11.1.md` and `DEPLOYMENT_CHECKLIST_v0.11.1.md`.
+See `RELEASE_NOTES_v0.12.0.md`, `TECHNICAL_ANALYSIS_v0.12.0.md` and `DEPLOYMENT_CHECKLIST_v0.12.0.md`.
 
+
+## v0.12.0 delivery intelligence
+
+- Permissioned GPS fields are supported on saved addresses and immutable checkout/order delivery snapshots.
+- Active customers can update the delivery point and explicitly start/ping/stop live-location sessions with expiry and terminal-state guards.
+- Restaurant ready ETA and delivery ETA are separate fields.
+- Platform-owned status visual packs provide approved icon mappings while semantic order statuses remain unchanged.
 
 ## v0.11.1 reliability repair
 

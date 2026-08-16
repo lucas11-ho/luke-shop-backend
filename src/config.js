@@ -38,7 +38,7 @@ export function loadConfig() {
     .filter(Boolean);
 
   const config = {
-    release: '0.11.1-customer-experience-reliability',
+    release: '0.12.0-delivery-location-status-visuals',
     nodeEnv,
     production,
     host: process.env.HOST?.trim() || '0.0.0.0',

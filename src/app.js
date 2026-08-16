@@ -21,6 +21,7 @@ import { customerOrderRoutes } from './modules/orders/customer-routes.js';
 import { merchantOrderRoutes } from './modules/orders/merchant-routes.js';
 import { merchantPaymentRoutes } from './modules/payments/merchant-routes.js';
 import { merchantDeliveryRoutes } from './modules/delivery/merchant-routes.js';
+import { customerDeliveryLocationRoutes } from './modules/delivery/customer-location-routes.js';
 import { merchantPromotionRoutes } from './modules/promotions/merchant-routes.js';
 import { customerCommerceRoutes } from './modules/commerce/customer-routes.js';
 import { customerServiceMerchantRoutes } from './modules/integrations/customer-service/merchant-routes.js';
@@ -121,6 +122,7 @@ export async function buildApp(config) {
   await app.register(merchantOrderRoutes);
   await app.register(merchantPaymentRoutes);
   await app.register(merchantDeliveryRoutes);
+  await app.register(customerDeliveryLocationRoutes);
   await app.register(merchantPromotionRoutes);
   await app.register(customerCommerceRoutes);
   await app.register(customerSupportContextRoutes);

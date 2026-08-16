@@ -1,0 +1,45 @@
+backend v0.12.0 changed files
+Base repository: luke-shop-backend
+Modified: 27
+Added: 7
+Deleted: 0
+
+[MODIFIED]
+API_CONTRACT.md
+README.md
+package-lock.json
+package.json
+scripts/source-regression-test.mjs
+scripts/v0.1.1-auth-reliability-regression-test.mjs
+scripts/v0.1.2-http-error-semantics-regression-test.mjs
+scripts/v0.10.0-store-designer-v3-regression-test.mjs
+scripts/v0.11.0-operations-control-completion-regression-test.mjs
+scripts/v0.11.1-customer-experience-reliability-regression-test.mjs
+scripts/v0.4.1-runtime-integration-regression-test.mjs
+scripts/v0.4.2-commerce-runtime-reliability-regression-test.mjs
+scripts/v0.5.0-cs-commerce-connector-regression-test.mjs
+scripts/v0.6.0-merchant-staff-rbac-regression-test.mjs
+scripts/v0.7.0-platform-control-plane-regression-test.mjs
+scripts/v0.7.1-storefront-routing-regression-test.mjs
+scripts/v0.8.0-media-asset-library-regression-test.mjs
+scripts/v0.9.0-experience-commerce-workflow-regression-test.mjs
+src/app.js
+src/config.js
+src/modules/auth/customer-routes.js
+src/modules/customer-experience/service.js
+src/modules/delivery/merchant-routes.js
+src/modules/orders/customer-routes.js
+src/modules/orders/service.js
+src/modules/platform/control-routes.js
+src/modules/storefront/context.js
+
+[ADDED]
+DEPLOYMENT_CHECKLIST_v0.12.0.md
+RELEASE_NOTES_v0.12.0.md
+TECHNICAL_ANALYSIS_v0.12.0.md
+migrations/013_customer_delivery_location_status_visuals.sql
+scripts/v0.12.0-delivery-location-status-visual-regression-test.mjs
+src/modules/delivery/customer-location-routes.js
+CHANGED_FILES_v0.12.0.txt
+
+[DELETED]

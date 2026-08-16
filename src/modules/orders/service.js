@@ -220,17 +220,18 @@ export async function orderDetails(db, tenantId, orderId, { customerId = null, p
   );
   if (!order.rowCount) throw errors.notFound('ORDER_NOT_FOUND', 'Order not found');
   const row = order.rows[0];
-  const [items, history, address, payment, fulfillments, adjustments] = await Promise.all([
-    db.query(`SELECT oi.public_id,p.public_id AS product_id,p.slug AS product_slug,v.public_id AS variant_id,oi.quantity,oi.fulfillment_mode,
+  const [items, history, address, payment, fulfillments, adjustments, liveLocation] = await Promise.all([
+    db.query(`SELECT oi.public_id,p.public_id AS product_id,p.slug AS product_slug,p.product_type,v.public_id AS variant_id,oi.quantity,oi.fulfillment_mode,
       oi.title_snapshot,oi.variant_title_snapshot,oi.sku_snapshot,oi.unit_price,oi.modifier_total,oi.selected_modifiers,oi.line_total,oi.currency
       FROM order_items oi JOIN products p ON p.id=oi.product_id AND p.tenant_id=oi.tenant_id AND p.store_id=oi.store_id
       LEFT JOIN product_variants v ON v.id=oi.variant_id AND v.tenant_id=oi.tenant_id AND v.store_id=oi.store_id
       WHERE oi.tenant_id=$1 AND oi.store_id=$2 AND oi.order_id=$3 ORDER BY oi.created_at,oi.id`, [tenantId,row.store_id,row.id]),
     db.query(`SELECT from_status,to_status,reason,actor_type,created_at FROM order_status_history WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3 ORDER BY created_at,id`, [tenantId,row.store_id,row.id]),
-    publicSafe ? Promise.resolve({ rowCount: 0, rows: [] }) : db.query(`SELECT recipient_name,phone,country_code,state,city,postal_code,address_line_1,address_line_2,delivery_note FROM order_addresses WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3`, [tenantId,row.store_id,row.id]),
+    publicSafe ? Promise.resolve({ rowCount: 0, rows: [] }) : db.query(`SELECT recipient_name,phone,country_code,state,city,postal_code,address_line_1,address_line_2,delivery_note,latitude,longitude,accuracy_meters,location_source,location_updated_at FROM order_addresses WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3`, [tenantId,row.store_id,row.id]),
     db.query(`SELECT op.public_id AS id,op.status,op.amount,op.currency,pm.public_id AS payment_method_id,pm.code AS payment_method_code,pm.name AS payment_method_name,pm.provider_type,${publicSafe ? 'NULL::text' : 'op.provider_reference'} AS provider_reference,op.paid_at,op.failed_at,op.refunded_amount FROM order_payments op LEFT JOIN payment_methods pm ON pm.id=op.payment_method_id AND pm.tenant_id=op.tenant_id AND pm.store_id=op.store_id WHERE op.tenant_id=$1 AND op.store_id=$2 AND op.order_id=$3`, [tenantId,row.store_id,row.id]),
-    db.query(`SELECT f.public_id AS id,f.fulfillment_mode,f.status,f.fee,dm.public_id AS delivery_method_id,dm.code AS delivery_method_code,dm.name AS delivery_method_name,f.carrier,${publicSafe ? 'NULL::text' : 'f.tracking_number'} AS tracking_number,${publicSafe ? 'NULL::text' : 'f.tracking_url'} AS tracking_url,f.estimated_at,f.shipped_at,f.delivered_at FROM order_fulfillments f LEFT JOIN delivery_methods dm ON dm.id=f.delivery_method_id AND dm.tenant_id=f.tenant_id AND dm.store_id=f.store_id WHERE f.tenant_id=$1 AND f.store_id=$2 AND f.order_id=$3 ORDER BY f.created_at`, [tenantId,row.store_id,row.id]),
+    db.query(`SELECT f.public_id AS id,f.fulfillment_mode,f.status,f.fee,dm.public_id AS delivery_method_id,dm.code AS delivery_method_code,dm.name AS delivery_method_name,f.carrier,${publicSafe ? 'NULL::text' : 'f.tracking_number'} AS tracking_number,${publicSafe ? 'NULL::text' : 'f.tracking_url'} AS tracking_url,f.estimated_at,f.estimated_ready_at,f.estimated_delivery_at,f.shipped_at,f.delivered_at FROM order_fulfillments f LEFT JOIN delivery_methods dm ON dm.id=f.delivery_method_id AND dm.tenant_id=f.tenant_id AND dm.store_id=f.store_id WHERE f.tenant_id=$1 AND f.store_id=$2 AND f.order_id=$3 ORDER BY f.created_at`, [tenantId,row.store_id,row.id]),
     db.query(`SELECT adjustment_type,code,description,amount,created_at FROM order_adjustments WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3 ORDER BY created_at,id`, [tenantId,row.store_id,row.id]),
+    publicSafe ? Promise.resolve({rowCount:0,rows:[]}) : db.query(`SELECT public_id AS session_id,status,last_latitude AS latitude,last_longitude AS longitude,last_accuracy_meters AS accuracy_meters,started_at,last_ping_at,expires_at,stopped_at FROM customer_live_location_sessions WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3 ORDER BY started_at DESC LIMIT 1`,[tenantId,row.store_id,row.id]),
   ]);
   const safe = {
     id: row.public_id, order_number: row.order_number, store: { id: row.store_public_id, name: row.store_name },
@@ -238,7 +239,7 @@ export async function orderDetails(db, tenantId, orderId, { customerId = null, p
     status: row.status, payment_status: row.payment_status, currency: row.currency, subtotal: row.subtotal,
     discount_total: row.discount_total, delivery_total: row.delivery_total, tax_total: row.tax_total, grand_total: row.grand_total,
     customer_note: row.customer_note, created_at: row.created_at, paid_at: row.paid_at, cancelled_at: row.cancelled_at, completed_at: row.completed_at,
-    items: items.rows, status_history: history.rows, payment: payment.rowCount ? payment.rows[0] : null, fulfillments: fulfillments.rows, adjustments: adjustments.rows,
+    items: items.rows, status_history: history.rows, payment: payment.rowCount ? payment.rows[0] : null, fulfillments: fulfillments.rows, adjustments: adjustments.rows, live_customer_location: liveLocation?.rowCount ? liveLocation.rows[0] : null,
   };
   if (!publicSafe) safe.shipping_address = address.rowCount ? address.rows[0] : null;
   return safe;
