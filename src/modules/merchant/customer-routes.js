@@ -19,7 +19,7 @@ export async function merchantCustomerRoutes(app) {
     if (status) { values.push(status); where += ` AND status = $${values.length}`; }
     values.push(limit, offset);
     const result = await app.db.query(
-      `SELECT public_id, email, display_name, status, created_at, last_login_at
+      `SELECT public_id,customer_code,email,phone_e164,avatar_url,display_name,status, created_at, last_login_at
          FROM customers ${where}
         ORDER BY created_at DESC LIMIT $${values.length - 1} OFFSET $${values.length}`, values);
     return { data: { customers: result.rows, limit, offset } };
@@ -29,14 +29,14 @@ export async function merchantCustomerRoutes(app) {
     preHandler: [app.requireMerchantAuth, app.requirePermission(PERMISSIONS.CUSTOMERS_READ)],
   }, async (request) => {
     const result = await app.db.query(
-      `SELECT id,public_id, email, display_name, status, created_at, updated_at, last_login_at,password_changed_at
+      `SELECT id,public_id,customer_code,email,phone_e164,avatar_url,display_name,status, created_at, updated_at, last_login_at,password_changed_at
          FROM customers WHERE tenant_id = $1 AND public_id = $2`,
       [request.auth.tenantId, request.params.customerId],
     );
     if (!result.rowCount) throw errors.notFound('CUSTOMER_NOT_FOUND', 'Customer not found');
     const customer=result.rows[0];
     const [addresses,statusHistory,orders,sessions]=await Promise.all([
-      app.db.query(`SELECT public_id AS id,label,recipient_name,phone,country_code,state,city,postal_code,address_line_1,address_line_2,is_default,created_at,updated_at FROM customer_addresses WHERE tenant_id=$1 AND customer_id=$2 ORDER BY is_default DESC,updated_at DESC`,[request.auth.tenantId,customer.id]),
+      app.db.query(`SELECT public_id AS id,label,recipient_name,phone,country_code,state,city,postal_code,address_line_1,address_line_2,formatted_address,is_default,created_at,updated_at FROM customer_addresses WHERE tenant_id=$1 AND customer_id=$2 ORDER BY is_default DESC,updated_at DESC`,[request.auth.tenantId,customer.id]),
       app.db.query(`SELECT from_status,to_status,reason,changed_by_type,created_at FROM customer_status_history WHERE tenant_id=$1 AND customer_id=$2 ORDER BY created_at DESC LIMIT 50`,[request.auth.tenantId,customer.id]),
       app.db.query(`SELECT o.public_id AS id,o.order_number,o.status,o.payment_status,o.grand_total,o.currency,o.created_at,s.public_id AS store_id,s.name AS store_name FROM orders o JOIN stores s ON s.id=o.store_id AND s.tenant_id=o.tenant_id WHERE o.tenant_id=$1 AND o.customer_id=$2 ORDER BY o.created_at DESC LIMIT 25`,[request.auth.tenantId,customer.id]),
       app.db.query(`SELECT count(*)::int AS active FROM customer_sessions WHERE tenant_id=$1 AND customer_id=$2 AND revoked_at IS NULL AND expires_at>now()`,[request.auth.tenantId,customer.id]),

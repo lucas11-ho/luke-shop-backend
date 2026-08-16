@@ -64,3 +64,27 @@ v0.11.x store management, audit, Merchant/Platform self-security, customer profi
 - Public-safe APIs do not expose precise/live customer coordinates.
 - Migration 013 is applied separately from the Windows source installer.
 - Courier/driver GPS and map-provider integration are not claimed by this release.
+
+## v0.13.0 Customer identity & fulfillment contracts
+
+Customer identity/auth:
+- `GET /v1/customer/auth/options`
+- `POST /v1/customer/auth/google`
+- `POST /v1/customer/auth/telegram`
+- `POST /v1/customer/auth/phone/request`
+- `POST /v1/customer/auth/phone/verify`
+- `GET /v1/customer/me/auth-identities`
+- `POST /v1/customer/me/auth-identities/google`
+- `POST /v1/customer/me/auth-identities/telegram`
+- `POST /v1/customer/me/auth-identities/phone/verify`
+- `POST /v1/customer/me/avatar?filename=...` using JPEG/PNG/WEBP raw image body
+- `POST /v1/customer/location/reverse-geocode`
+
+Merchant controls:
+- `GET /v1/merchant/customer-auth/options`
+- `PATCH /v1/merchant/tenant/settings` with `customer_identity`
+- `GET /v1/merchant/notifications`
+- `POST /v1/merchant/notifications/:notificationId/read`
+- `POST /v1/merchant/notifications/read-all`
+
+Customer UUIDs remain internal. `customer_code` is the readable tenant-scoped identifier. Fulfillment groups are bound to `fulfillment_type`, and merchant fulfillment responses expose only valid `allowed_transitions` for that type.

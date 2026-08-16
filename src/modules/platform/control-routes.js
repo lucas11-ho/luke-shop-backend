@@ -68,7 +68,7 @@ export async function platformControlRoutes(app){
 
   app.get('/v1/platform/tenants/:tenantRef',{preHandler:auth},async request=>{
     const t=await tenantByRef(app.db,request.params.tenantRef);
-    const [settings,owner,profile,storeCounts,primaryStore,domains,storesList]=await Promise.all([
+    const [settings,owner,profile,storeCounts,primaryStore,domains,storesList,customerIdentity]=await Promise.all([
       app.db.query('SELECT currency,locale,timezone,modules,branding,customer_service FROM tenant_settings WHERE tenant_id=$1',[t.id]),
       app.db.query(`SELECT u.public_id AS id,u.email,u.display_name,u.status,u.last_login_at FROM merchant_users u JOIN merchant_user_roles ur ON ur.tenant_id=u.tenant_id AND ur.merchant_user_id=u.id JOIN merchant_roles r ON r.id=ur.role_id WHERE u.tenant_id=$1 AND r.key='OWNER' ORDER BY u.created_at LIMIT 1`,[t.id]),
       effectiveProfile(app.db,t.id),app.db.query('SELECT count(*)::int AS total,count(*) FILTER(WHERE status=\'ACTIVE\')::int AS active FROM stores WHERE tenant_id=$1',[t.id]),
@@ -76,9 +76,10 @@ export async function platformControlRoutes(app){
       app.db.query(`SELECT d.public_id AS id,d.hostname,d.status,d.is_primary,d.verified_at,s.public_id AS store_id,s.slug AS store_slug
                       FROM storefront_domains d LEFT JOIN stores s ON s.id=d.store_id WHERE d.tenant_id=$1 ORDER BY d.is_primary DESC,d.created_at DESC`,[t.id]),
       app.db.query('SELECT public_id AS id,slug,name,status,is_primary,created_at,updated_at FROM stores WHERE tenant_id=$1 ORDER BY is_primary DESC,name',[t.id]),
+      app.db.query('SELECT id_prefix,next_sequence,auth_config FROM tenant_customer_identity_settings WHERE tenant_id=$1',[t.id]),
     ]);
     const primary=primaryStore.rows[0]||null;
-    return {data:{tenant:{id:t.public_id,slug:t.slug,name:t.name,status:t.status,created_at:t.created_at,settings:settings.rows[0]||null,owner:owner.rows[0]||null,platform:profile,stores:storeCounts.rows[0],store_list:storesList.rows,primary_store:primary,storefront_path:`/t/${t.slug}`,domains:domains.rows}}};
+    return {data:{tenant:{id:t.public_id,slug:t.slug,name:t.name,status:t.status,created_at:t.created_at,settings:settings.rows[0]||null,customer_identity:customerIdentity.rows[0]||null,owner:owner.rows[0]||null,platform:profile,stores:storeCounts.rows[0],store_list:storesList.rows,primary_store:primary,storefront_path:`/t/${t.slug}`,domains:domains.rows}}};
   });
 
   app.post('/v1/platform/tenants',{

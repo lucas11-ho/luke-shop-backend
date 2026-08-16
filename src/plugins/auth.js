@@ -20,7 +20,7 @@ export function authPlugin(app) {
     }
     if (payload.actor_type !== 'CUSTOMER') throw errors.forbidden('ACTOR_TYPE_INVALID', 'Customer authentication required');
     const result = await app.db.query(
-      `SELECT c.id, c.public_id, c.status, c.display_name, c.email, s.id AS session_id
+      `SELECT c.id, c.public_id, c.customer_code, c.status, c.display_name, c.email, c.phone_e164, c.avatar_url, s.id AS session_id
          FROM customer_sessions s
          JOIN customers c ON c.id = s.customer_id AND c.tenant_id = s.tenant_id
          JOIN tenants t ON t.id = s.tenant_id

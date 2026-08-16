@@ -4,6 +4,8 @@ import { writeAudit } from '../../core/audit.js';
 import { resolveStore } from '../catalog/service.js';
 import { allowedOrderTransitions, assertOrderTransition, consumeReservations, orderDetails, paymentStatusFor, releaseReservations } from './service.js';
 import { confirmPayment } from '../payments/service.js';
+import { createMerchantNotification } from '../notifications/service.js';
+import { fulfillmentDetails } from '../delivery/service.js';
 
 const orderStatuses = ['PENDING_PAYMENT','PAID','CONFIRMED','RESTAURANT_ACCEPTED','PREPARING','READY','PROCESSING','PACKED','PICKED_UP','SHIPPED','OUT_FOR_DELIVERY','ACCESS_GRANTED','AVAILABLE_FOR_DOWNLOAD','DELIVERED','COMPLETED','CANCELLED','PAYMENT_FAILED','REFUND_PENDING','REFUNDED'];
 const storeHeader = (request) => request.headers['x-store-id'] || null;
@@ -20,14 +22,14 @@ export async function merchantOrderRoutes(app) {
     if(request.query.customer_id){values.push(request.query.customer_id);where+=` AND c.public_id=$${values.length}`;}
     if(request.query.q){values.push(request.query.q);const p=`$${values.length}`;where+=` AND (o.order_number ILIKE '%'||${p}||'%' OR c.display_name ILIKE '%'||${p}||'%')`;}
     values.push(request.query.limit||50,request.query.offset||0);
-    const result=await app.db.query(`SELECT o.public_id AS id,o.order_number,c.public_id AS customer_id,c.display_name AS customer_display_name,o.order_type,o.status,o.payment_status,o.currency,o.grand_total,o.created_at,o.updated_at FROM orders o JOIN customers c ON c.id=o.customer_id AND c.tenant_id=o.tenant_id WHERE ${where} ORDER BY o.created_at DESC LIMIT $${values.length-1} OFFSET $${values.length}`,values);
+    const result=await app.db.query(`SELECT o.public_id AS id,o.order_number,c.public_id AS customer_id,c.customer_code,c.display_name AS customer_display_name,o.order_type,o.status,o.payment_status,o.currency,o.grand_total,o.created_at,o.updated_at FROM orders o JOIN customers c ON c.id=o.customer_id AND c.tenant_id=o.tenant_id WHERE ${where} ORDER BY o.created_at DESC LIMIT $${values.length-1} OFFSET $${values.length}`,values);
     return {data:{store:{id:store.public_id,name:store.name},orders:result.rows,limit:request.query.limit||50,offset:request.query.offset||0}};
   });
 
   app.get('/v1/merchant/orders/:orderRef',{preHandler:[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.ORDERS_READ)]},async(request)=>{
     const store=await resolveStore(app.db,request.auth.tenantId,storeHeader(request),{requireActive:false});
     const found=await app.db.query(`SELECT public_id FROM orders WHERE tenant_id=$1 AND store_id=$2 AND (public_id=$3 OR order_number=$3)`,[request.auth.tenantId,store.id,request.params.orderRef]);
-    if(!found.rowCount) throw errors.notFound('ORDER_NOT_FOUND','Order not found');const order=await orderDetails(app.db,request.auth.tenantId,found.rows[0].public_id);return {data:{order:{...order,allowed_transitions:allowedOrderTransitions(order.order_type,order.status)}}};
+    if(!found.rowCount) throw errors.notFound('ORDER_NOT_FOUND','Order not found');const order=await orderDetails(app.db,request.auth.tenantId,found.rows[0].public_id);order.fulfillments=await fulfillmentDetails(app.db,request.auth.tenantId,found.rows[0].public_id);return {data:{order:{...order,allowed_transitions:allowedOrderTransitions(order.order_type,order.status)}}};
   });
 
   app.post('/v1/merchant/orders/:orderRef/transition',{
@@ -51,9 +53,10 @@ export async function merchantOrderRoutes(app) {
       const paidAt=toStatus==='PAID'?'now()':'paid_at';const cancelledAt=toStatus==='CANCELLED'?'now()':'cancelled_at';const completedAt=['COMPLETED','REFUNDED'].includes(toStatus)?'now()':'completed_at';
       await client.query(`UPDATE orders SET status=$1,payment_status=$2,reservation_expires_at=${reservationExpiry},paid_at=${paidAt},cancelled_at=${cancelledAt},completed_at=${completedAt},updated_at=now() WHERE id=$3`,[toStatus,paymentStatus,order.id]);
       await client.query(`INSERT INTO order_status_history(tenant_id,store_id,order_id,from_status,to_status,reason,actor_type,actor_id,request_id) VALUES($1,$2,$3,$4,$5,$6,'MERCHANT',$7,$8)`,[request.auth.tenantId,store.id,order.id,order.status,toStatus,request.body.reason||null,request.auth.actorId,request.id]);
+      await createMerchantNotification(client,{tenantId:request.auth.tenantId,storeId:store.id,type:'ORDER_STATUS_CHANGED',title:`Order ${order.order_number} updated`,message:`${order.status.replace(/_/g,' ')} → ${toStatus.replace(/_/g,' ')}`,orderId:order.id,customerId:order.customer_id,payload:{order_id:order.public_id,order_number:order.order_number,from_status:order.status,to_status:toStatus,order_type:order.order_type}});
       await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'order.transition',targetType:'order',targetId:order.id,metadata:{order_number:order.order_number,from_status:order.status,to_status:toStatus,payment_status:paymentStatus},requestIp:request.ip,requestId:request.id});
       return order.public_id;
     });
-    const updated=await orderDetails(app.db,request.auth.tenantId,publicOrderId);return {data:{order:{...updated,allowed_transitions:allowedOrderTransitions(updated.order_type,updated.status)}}};
+    const updated=await orderDetails(app.db,request.auth.tenantId,publicOrderId);updated.fulfillments=await fulfillmentDetails(app.db,request.auth.tenantId,publicOrderId);return {data:{order:{...updated,allowed_transitions:allowedOrderTransitions(updated.order_type,updated.status)}}};
   });
 }

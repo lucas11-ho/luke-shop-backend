@@ -38,7 +38,7 @@ export function loadConfig() {
     .filter(Boolean);
 
   const config = {
-    release: '0.12.0-delivery-location-status-visuals',
+    release: '0.13.0-identity-fulfillment-notifications',
     nodeEnv,
     production,
     host: process.env.HOST?.trim() || '0.0.0.0',
@@ -78,6 +78,14 @@ export function loadConfig() {
     assetPublicBaseUrl: process.env.ASSET_PUBLIC_BASE_URL?.trim().replace(/\/$/, '') || `http://localhost:${intEnv('PORT', 4100, { min: 1, max: 65535 })}`,
     assetImageMaxBytes: intEnv('ASSET_IMAGE_MAX_BYTES', 10485760, { min: 65536, max: 52428800 }),
     assetVideoMaxBytes: intEnv('ASSET_VIDEO_MAX_BYTES', 104857600, { min: 1048576, max: 524288000 }),
+    customerGoogleClientId: process.env.CUSTOMER_GOOGLE_CLIENT_ID?.trim() || '',
+    customerTelegramBotUsername: process.env.CUSTOMER_TELEGRAM_BOT_USERNAME?.trim().replace(/^@/,'') || '',
+    customerTelegramBotToken: process.env.CUSTOMER_TELEGRAM_BOT_TOKEN?.trim() || '',
+    customerPhoneOtpWebhookUrl: process.env.CUSTOMER_PHONE_OTP_WEBHOOK_URL?.trim() || '',
+    customerPhoneOtpWebhookBearer: process.env.CUSTOMER_PHONE_OTP_WEBHOOK_BEARER?.trim() || '',
+    customerPhoneOtpHashSecret: process.env.CUSTOMER_PHONE_OTP_HASH_SECRET?.trim() || '',
+    geocodingProvider: (process.env.GEOCODING_PROVIDER || 'NONE').trim().toUpperCase(),
+    geocodingBaseUrl: process.env.GEOCODING_BASE_URL?.trim().replace(/\/$/,'') || '',
   };
 
   if (production && corsOrigins.length === 0) {
@@ -94,6 +102,9 @@ export function loadConfig() {
   if (production && !process.env.ASSET_PUBLIC_BASE_URL?.trim() && !(config.assetStorageDriver === 'R2' && config.r2PublicBaseUrl)) {
     throw new Error('ASSET_PUBLIC_BASE_URL is required in production unless R2_PUBLIC_BASE_URL is configured');
   }
+  if (!['NONE','NOMINATIM'].includes(config.geocodingProvider)) throw new Error('GEOCODING_PROVIDER must be NONE or NOMINATIM');
+  if (config.geocodingProvider==='NOMINATIM' && !config.geocodingBaseUrl) throw new Error('GEOCODING_BASE_URL is required when GEOCODING_PROVIDER=NOMINATIM');
+  if (config.customerPhoneOtpWebhookUrl && config.customerPhoneOtpHashSecret.length < 32) throw new Error('CUSTOMER_PHONE_OTP_HASH_SECRET must be at least 32 characters when phone OTP is configured');
   if (production && config.csContextSigningSecret === config.csServiceSigningSecret) {
     throw new Error('CS_CONTEXT_SIGNING_SECRET and CS_SERVICE_SIGNING_SECRET must be different in production');
   }

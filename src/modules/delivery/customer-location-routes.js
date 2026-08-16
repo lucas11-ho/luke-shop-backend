@@ -29,10 +29,11 @@ async function ownedOrder(client, tenantId, customerId, orderRef, { lock=false }
 async function ensureLocationMutable(client, order) {
   if (TERMINAL_ORDER.has(order.status)) throw errors.conflict('DELIVERY_LOCATION_LOCKED','Delivery location can no longer be changed for this order');
   const fulfillment = await client.query(
-    `SELECT status FROM order_fulfillments WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3 ORDER BY created_at LIMIT 1`,
+    `SELECT status FROM order_fulfillments WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3
+       AND fulfillment_type IN ('PHYSICAL_SHIPPING','PHYSICAL_LOCAL_DELIVERY','FOOD_DELIVERY') ORDER BY created_at`,
     [order.tenant_id,order.store_id,order.id],
   );
-  if (fulfillment.rowCount && TERMINAL_FULFILLMENT.has(fulfillment.rows[0].status)) throw errors.conflict('DELIVERY_LOCATION_LOCKED','Delivery location can no longer be changed for this fulfillment');
+  if (fulfillment.rowCount && fulfillment.rows.every((row)=>TERMINAL_FULFILLMENT.has(row.status))) throw errors.conflict('DELIVERY_LOCATION_LOCKED','Delivery location can no longer be changed for this fulfillment');
 }
 
 export async function customerDeliveryLocationRoutes(app) {

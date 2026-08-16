@@ -1,18 +1,25 @@
-# LUKE_SHOP_BACKEND — current release v0.12.0
+# LUKE_SHOP_BACKEND — current release v0.13.0
 
-**Delivery Intelligence & Platform-Managed Status Visuals** · 2026-08-16
+**Customer Identity, Fulfillment Intelligence & Merchant Notifications** · 2026-08-17
 
 Luke Shop Backend is the tenant-authoritative commerce API for Merchant Admin, Customer Web, Platform Admin and the Luke CS service connector.
 
 Current coordinated frontend versions:
-- Merchant Admin v0.10.0
-- Customer Web v0.7.0
-- Platform Admin v0.5.0
+- Merchant Admin v0.11.0
+- Customer Web v0.8.0
+- Platform Admin v0.6.0
 
-Database baseline: migrations through `013_customer_delivery_location_status_visuals.sql`.
+Database baseline: migrations through `014_customer_identity_fulfillment_notifications.sql`.
 
-See `RELEASE_NOTES_v0.12.0.md`, `TECHNICAL_ANALYSIS_v0.12.0.md` and `DEPLOYMENT_CHECKLIST_v0.12.0.md`.
+See `RELEASE_NOTES_v0.13.0.md`, `TECHNICAL_ANALYSIS_v0.13.0.md` and `DEPLOYMENT_CHECKLIST_v0.13.0.md`.
 
+
+
+## v0.13.0 release focus
+
+Migration 014 adds tenant-controlled readable customer codes, production-ready customer login identities, avatar/profile support, human-readable GPS address fields, type-specific fulfillment groups and merchant notification persistence. Existing UUIDs remain authoritative internal identifiers.
+
+Coordinated versions: Backend v0.13.0, Merchant Admin v0.11.0, Customer Web v0.8.0, Platform Admin v0.6.0.
 
 ## v0.12.0 delivery intelligence
 

@@ -1,0 +1,50 @@
+Luke Shop backend release changed files
+
+Added (9):
+A  DEPLOYMENT_CHECKLIST_v0.13.0.md
+A  RELEASE_NOTES_v0.13.0.md
+A  TECHNICAL_ANALYSIS_v0.13.0.md
+A  TEST_RESULT_v0.13.0.md
+A  migrations/014_customer_identity_fulfillment_notifications.sql
+A  scripts/v0.13.0-identity-fulfillment-notification-regression-test.mjs
+A  src/modules/auth/customer-identity.js
+A  src/modules/notifications/merchant-routes.js
+A  src/modules/notifications/service.js
+
+Modified (34):
+M  .env.example
+M  API_CONTRACT.md
+M  README.md
+M  package-lock.json
+M  package.json
+M  scripts/source-regression-test.mjs
+M  scripts/v0.1.1-auth-reliability-regression-test.mjs
+M  scripts/v0.1.2-http-error-semantics-regression-test.mjs
+M  scripts/v0.10.0-store-designer-v3-regression-test.mjs
+M  scripts/v0.11.0-operations-control-completion-regression-test.mjs
+M  scripts/v0.11.1-customer-experience-reliability-regression-test.mjs
+M  scripts/v0.12.0-delivery-location-status-visual-regression-test.mjs
+M  scripts/v0.4.1-runtime-integration-regression-test.mjs
+M  scripts/v0.4.2-commerce-runtime-reliability-regression-test.mjs
+M  scripts/v0.5.0-cs-commerce-connector-regression-test.mjs
+M  scripts/v0.6.0-merchant-staff-rbac-regression-test.mjs
+M  scripts/v0.7.0-platform-control-plane-regression-test.mjs
+M  scripts/v0.7.1-storefront-routing-regression-test.mjs
+M  scripts/v0.8.0-media-asset-library-regression-test.mjs
+M  scripts/v0.9.0-experience-commerce-workflow-regression-test.mjs
+M  src/app.js
+M  src/config.js
+M  src/modules/auth/customer-routes.js
+M  src/modules/delivery/customer-location-routes.js
+M  src/modules/delivery/merchant-routes.js
+M  src/modules/delivery/service.js
+M  src/modules/merchant/customer-routes.js
+M  src/modules/merchant/tenant-routes.js
+M  src/modules/orders/customer-routes.js
+M  src/modules/orders/merchant-routes.js
+M  src/modules/orders/service.js
+M  src/modules/platform/control-routes.js
+M  src/modules/tenants/service.js
+M  src/plugins/auth.js
+
+Deleted (0):

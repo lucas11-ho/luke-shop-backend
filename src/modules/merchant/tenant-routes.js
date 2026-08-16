@@ -2,6 +2,7 @@ import { PERMISSIONS } from '../../core/permissions.js';
 import { writeAudit } from '../../core/audit.js';
 import { getTenantById } from '../tenants/service.js';
 import { createStore, listStores, updateStore } from '../stores/service.js';
+import { customerIdentitySettings, effectiveAuthOptions } from '../auth/customer-identity.js';
 
 const storeBody = {
   type: 'object', additionalProperties: false, required: ['name','slug'], properties: {
@@ -61,6 +62,13 @@ export async function merchantTenantRoutes(app) {
     preHandler: [app.requireMerchantAuth, app.requirePermission(PERMISSIONS.TENANT_SETTINGS_READ)],
   }, async (request) => ({ data: { tenant: await getTenantById(app.db, request.auth.tenantId) } }));
 
+  app.get('/v1/merchant/customer-auth/options', {
+    preHandler: [app.requireMerchantAuth, app.requirePermission(PERMISSIONS.TENANT_SETTINGS_READ)],
+  }, async (request) => {
+    const settings=await customerIdentitySettings(app.db,request.auth.tenantId);
+    return { data: { auth: effectiveAuthOptions(settings,app.config), next_customer_code: `${settings.id_prefix}${String(settings.next_sequence).padStart(7,'0')}` } };
+  });
+
   app.patch('/v1/merchant/tenant/settings', {
     preHandler: [app.requireMerchantAuth, app.requirePermission(PERMISSIONS.TENANT_SETTINGS_WRITE)],
     schema: { body: { type: 'object', additionalProperties: false, properties: {
@@ -70,12 +78,14 @@ export async function merchantTenantRoutes(app) {
       branding: { type: 'object' },
       modules: { type: 'object' },
       customer_service: { type: 'object' },
+      customer_identity: { type: 'object', additionalProperties: false, properties: { id_prefix:{type:'string',pattern:'^[A-Z]{2,6}$'}, auth_config:{type:'object',additionalProperties:false,properties:{email_password:{type:'boolean'},google:{type:'boolean'},telegram:{type:'boolean'},phone:{type:'boolean'},phone_countries:{type:'array',maxItems:40,uniqueItems:true,items:{type:'string',pattern:'^[A-Z]{2}$'}}} } } },
     } } },
   }, async (request) => {
     const body = request.body || {};
     const result = await app.db.transaction(async (client) => {
       const current = await client.query('SELECT * FROM tenant_settings WHERE tenant_id = $1 FOR UPDATE', [request.auth.tenantId]);
       const row = current.rows[0];
+      const identityCurrent=(await client.query('SELECT * FROM tenant_customer_identity_settings WHERE tenant_id=$1 FOR UPDATE',[request.auth.tenantId])).rows[0];
       const next = {
         currency: body.currency ?? row.currency,
         locale: body.locale ?? row.locale,
@@ -84,6 +94,7 @@ export async function merchantTenantRoutes(app) {
         modules: body.modules ? { ...row.modules, ...body.modules } : row.modules,
         customerService: body.customer_service ? { ...row.customer_service, ...body.customer_service } : row.customer_service,
       };
+      if(body.customer_identity){const nextPrefix=body.customer_identity.id_prefix??identityCurrent.id_prefix;const nextAuth={...(identityCurrent.auth_config||{}),...(body.customer_identity.auth_config||{})};const effective=effectiveAuthOptions({id_prefix:nextPrefix,auth_config:nextAuth},app.config);if(!Object.values(effective.methods).some(method=>method.enabled))throw errors.conflict('CUSTOMER_AUTH_METHOD_REQUIRED','At least one production-ready customer login method must remain enabled');await client.query('UPDATE tenant_customer_identity_settings SET id_prefix=$1,auth_config=$2::jsonb,updated_at=now() WHERE tenant_id=$3',[nextPrefix,JSON.stringify(nextAuth),request.auth.tenantId]);}
       const updated = await client.query(
         `UPDATE tenant_settings SET currency=$1, locale=$2, timezone=$3, branding=$4::jsonb,
                 modules=$5::jsonb, customer_service=$6::jsonb, updated_at=now()
@@ -94,7 +105,8 @@ export async function merchantTenantRoutes(app) {
       await writeAudit(client, { tenantId: request.auth.tenantId, actorType: 'MERCHANT', actorId: request.auth.actorId,
         action: 'tenant.settings.update', targetType: 'tenant', targetId: request.auth.tenantId,
         metadata: { changed_fields: Object.keys(body) }, requestIp: request.ip, requestId: request.id });
-      return updated.rows[0];
+      const identity=(await client.query('SELECT id_prefix,next_sequence,auth_config FROM tenant_customer_identity_settings WHERE tenant_id=$1',[request.auth.tenantId])).rows[0];
+      return {...updated.rows[0],customer_identity:identity};
     });
     return { data: { settings: result } };
   });
