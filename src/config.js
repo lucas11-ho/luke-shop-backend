@@ -38,7 +38,7 @@ export function loadConfig() {
     .filter(Boolean);
 
   const config = {
-    release: '0.13.0-identity-fulfillment-notifications',
+    release: '0.14.1-customer-auth-pro',
     nodeEnv,
     production,
     host: process.env.HOST?.trim() || '0.0.0.0',
@@ -79,8 +79,17 @@ export function loadConfig() {
     assetImageMaxBytes: intEnv('ASSET_IMAGE_MAX_BYTES', 10485760, { min: 65536, max: 52428800 }),
     assetVideoMaxBytes: intEnv('ASSET_VIDEO_MAX_BYTES', 104857600, { min: 1048576, max: 524288000 }),
     customerGoogleClientId: process.env.CUSTOMER_GOOGLE_CLIENT_ID?.trim() || '',
+    customerTelegramClientId: process.env.CUSTOMER_TELEGRAM_CLIENT_ID?.trim() || '',
+    customerTelegramClientSecret: process.env.CUSTOMER_TELEGRAM_CLIENT_SECRET?.trim() || '',
     customerTelegramBotUsername: process.env.CUSTOMER_TELEGRAM_BOT_USERNAME?.trim().replace(/^@/,'') || '',
     customerTelegramBotToken: process.env.CUSTOMER_TELEGRAM_BOT_TOKEN?.trim() || '',
+    customerTurnstileEnabled: boolEnv('CUSTOMER_TURNSTILE_ENABLED', false),
+    customerTurnstileSiteKey: process.env.CUSTOMER_TURNSTILE_SITE_KEY?.trim() || '',
+    customerTurnstileSecretKey: process.env.CUSTOMER_TURNSTILE_SECRET_KEY?.trim() || '',
+    customerTurnstileHostnames: (process.env.CUSTOMER_TURNSTILE_HOSTNAMES || '').split(',').map(value=>value.trim().toLowerCase()).filter(Boolean),
+    customerTurnstileLoginRequired: boolEnv('CUSTOMER_TURNSTILE_LOGIN_REQUIRED', true),
+    customerTurnstileSignupRequired: boolEnv('CUSTOMER_TURNSTILE_SIGNUP_REQUIRED', true),
+    customerTurnstileSocialRequired: boolEnv('CUSTOMER_TURNSTILE_SOCIAL_REQUIRED', false),
     customerPhoneOtpWebhookUrl: process.env.CUSTOMER_PHONE_OTP_WEBHOOK_URL?.trim() || '',
     customerPhoneOtpWebhookBearer: process.env.CUSTOMER_PHONE_OTP_WEBHOOK_BEARER?.trim() || '',
     customerPhoneOtpHashSecret: process.env.CUSTOMER_PHONE_OTP_HASH_SECRET?.trim() || '',
@@ -104,6 +113,12 @@ export function loadConfig() {
   }
   if (!['NONE','NOMINATIM'].includes(config.geocodingProvider)) throw new Error('GEOCODING_PROVIDER must be NONE or NOMINATIM');
   if (config.geocodingProvider==='NOMINATIM' && !config.geocodingBaseUrl) throw new Error('GEOCODING_BASE_URL is required when GEOCODING_PROVIDER=NOMINATIM');
+  if (config.customerTurnstileEnabled) {
+    if (!config.customerTurnstileSiteKey) throw new Error('CUSTOMER_TURNSTILE_SITE_KEY is required when CUSTOMER_TURNSTILE_ENABLED=true');
+    if (!config.customerTurnstileSecretKey) throw new Error('CUSTOMER_TURNSTILE_SECRET_KEY is required when CUSTOMER_TURNSTILE_ENABLED=true');
+    if (production && config.customerTurnstileHostnames.length === 0) throw new Error('CUSTOMER_TURNSTILE_HOSTNAMES is required in production when CUSTOMER_TURNSTILE_ENABLED=true');
+  }
+  if (config.customerTelegramClientId && !/^\d+$/.test(config.customerTelegramClientId)) throw new Error('CUSTOMER_TELEGRAM_CLIENT_ID must be the numeric Client ID issued by BotFather');
   if (config.customerPhoneOtpWebhookUrl && config.customerPhoneOtpHashSecret.length < 32) throw new Error('CUSTOMER_PHONE_OTP_HASH_SECRET must be at least 32 characters when phone OTP is configured');
   if (production && config.csContextSigningSecret === config.csServiceSigningSecret) {
     throw new Error('CS_CONTEXT_SIGNING_SECRET and CS_SERVICE_SIGNING_SECRET must be different in production');

@@ -13,7 +13,7 @@ const permissions=read('src/core/permissions.js');
 const app=read('src/app.js');
 const ci=read('.github/workflows/ci.yml');
 
-test('package version carries v0.6.0 RBAC forward',()=>assert.ok(['0.6.0','0.7.0','0.7.1','0.8.0','0.9.0','0.10.0','0.11.0','0.11.1','0.12.0','0.13.0','0.14.0'].includes(pkg.version)));
+test('package version carries v0.6.0 RBAC forward',()=>assert.ok(['0.6.0','0.7.0','0.7.1','0.8.0','0.9.0','0.10.0','0.11.0','0.11.1','0.12.0','0.13.0','0.14.0','0.14.1'].includes(pkg.version)));
 test('runtime release carries merchant staff RBAC forward',()=>assert.match(read('src/app.js'),/merchantAccessRoutes/));
 for(const [file,hash] of Object.entries({
  'migrations/001_multi_tenant_commerce_foundation.sql':'409325e42984e3d495a8af9b411cd3f01da610bef7cf6e2ce99bad563ccb2e19',

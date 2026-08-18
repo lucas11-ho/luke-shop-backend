@@ -91,7 +91,7 @@ export async function merchantTenantRoutes(app) {
       branding: { type: 'object' },
       modules: { type: 'object' },
       customer_service: { type: 'object' },
-      customer_identity: { type: 'object', additionalProperties: false, properties: { id_prefix:{type:'string',pattern:'^[A-Z]{2,6}$'}, auth_config:{type:'object',additionalProperties:false,properties:{email_password:{type:'boolean'},google:{type:'boolean'},telegram:{type:'boolean'},phone:{type:'boolean'},phone_countries:{type:'array',maxItems:40,uniqueItems:true,items:{type:'string',pattern:'^[A-Z]{2}$'}}} } } },
+      customer_identity: { type: 'object', additionalProperties: false, properties: { id_prefix:{type:'string',pattern:'^[A-Z]{2,6}$'}, auth_config:{type:'object',additionalProperties:false,properties:{email_password:{type:'boolean'},google:{type:'boolean'},telegram:{type:'boolean'},phone:{type:'boolean'},phone_countries:{type:'array',maxItems:40,uniqueItems:true,items:{type:'string',pattern:'^[A-Z]{2}$'}},turnstile_login_required:{type:'boolean'},turnstile_signup_required:{type:'boolean'},turnstile_social_required:{type:'boolean'}} } } },
     } } },
   }, async (request) => {
     const body = request.body || {};

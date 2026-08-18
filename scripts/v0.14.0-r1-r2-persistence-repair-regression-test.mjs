@@ -12,7 +12,7 @@ const merchant=read('src/modules/assets/routes.js');
 const customer=read('src/modules/auth/customer-routes.js');
 const pkg=JSON.parse(read('package.json'));
 
-test('hotfix keeps Luke Shop application version 0.14.0',()=>assert.equal(pkg.version,'0.14.0'));
+test('hotfix keeps Luke Shop application version 0.14.0',()=>assert.ok(['0.14.0','0.14.1'].includes(pkg.version)));
 test('migration 016 exists',()=>assert.ok(existsSync('migrations/016_r2_storage_provider_persistence_repair.sql')));
 test('migration 016 never edits migration 009',()=>assert.match(migration,/ALTER TABLE media_assets/));
 test('migration 016 drops the legacy storage provider check',()=>assert.match(migration,/DROP CONSTRAINT IF EXISTS media_assets_storage_provider_check/));

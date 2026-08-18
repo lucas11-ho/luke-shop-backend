@@ -97,3 +97,11 @@ Customer Web obtains a short-lived signed support context with `POST /v1/custome
 Server-to-server Luke CS access uses the existing credential exchange `POST /v1/customer-service/auth/token`, then `POST /v1/customer-service/tools/execute` with a short-lived service JWT, `X-Luke-Shop-Context`, fresh request timestamp and nonce. v0.14.0 supports the existing read-only tool policy and enriches `order.status` / `delivery.status` with fulfillment-aware facts.
 
 Storefront customer-service configuration may expose `chat_url`, `platform_route_key` and `commerce_context_version`; no long-lived credential is ever returned by a storefront endpoint.
+
+
+## v0.14.1 Customer Authentication Pro
+- `GET /v1/customer/auth/options` returns public provider readiness, Google Client ID, Telegram Client ID/mode, and Turnstile site key/policy; never provider secrets.
+- `GET /v1/customer/auth/telegram/nonce` returns a tenant-bound short-lived nonce for modern Telegram Login.
+- `POST /v1/customer/auth/google` accepts Google `credential` and optional `turnstile_token`.
+- `POST /v1/customer/auth/telegram` accepts modern `id_token` + `nonce` (legacy payload remains compatibility fallback) and optional `turnstile_token`.
+- Email register/login accept `turnstile_token` when policy requires it.

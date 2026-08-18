@@ -1,8 +1,8 @@
 {
-  "release": "v0.14.0-R1",
+  "release": "v0.14.1",
   "repository": "luke-shop-backend",
-  "generated_at": "2026-08-18T15:54:00+07:00",
-  "file_count": 245,
+  "generated_at": "2026-08-18T19:26:00+07:00",
+  "file_count": 251,
   "files": [
     {
       "path": ".dockerignore",
@@ -11,8 +11,8 @@
     },
     {
       "path": ".env.example",
-      "sha256": "53fd7c83309a960930f822e90fc16a2b2f4c342e8e6c3bc4f883fc50c4f84142",
-      "size": 2516
+      "sha256": "0d3282b6b976317329f367ef6d1fa3378e0ca9259c06ffc429ee1ff95ebfd347",
+      "size": 2650
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -31,8 +31,8 @@
     },
     {
       "path": "API_CONTRACT.md",
-      "sha256": "5e543aa5cd4015bcc665783291e412f85755407736c74c0486a0b62a5c7203f2",
-      "size": 4901
+      "sha256": "7b05ef1575b170bd746c2ebed86cce06d63a8689d4136cd85fc67db4c8dfaaeb",
+      "size": 5537
     },
     {
       "path": "ARCHITECTURE.md",
@@ -83,6 +83,11 @@
       "path": "CHANGED_FILES_v0.14.0.txt",
       "sha256": "e141a916a340bec8c458c416d09eb1b491237be019b012c6ea125cc294863b04",
       "size": 691
+    },
+    {
+      "path": "CHANGED_FILES_v0.14.1.txt",
+      "sha256": "e0a0ad18a4fa343dbd4e7f5ee0b276fca6a992651316870b49f77785e6618f5d",
+      "size": 1402
     },
     {
       "path": "CHANGED_FILES_v0.2.0.txt",
@@ -190,6 +195,11 @@
       "size": 486
     },
     {
+      "path": "DEPLOYMENT_CHECKLIST_v0.14.1.md",
+      "sha256": "256091e8fcd942dc26fc315431e0cc6d14de7a56f2207759bad959acd08763f7",
+      "size": 1501
+    },
+    {
       "path": "DEPLOYMENT_CHECKLIST_v0.2.0.md",
       "sha256": "f7c0105dfc2ced34947a813e81a4ea7e07585fd0cfc2e31fa888160b81ec2517",
       "size": 989
@@ -251,8 +261,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "44ed6725e8986e65791ef765dd8ba3b586db01cbb7effed7c9dd9acaeabbbcd4",
-      "size": 1856
+      "sha256": "5a41b3219b003da2e0b0e2fa38bf46a656e87fc369634bb0225ea52e5af4ad3e",
+      "size": 996
     },
     {
       "path": "RELEASE_NOTES_v0.1.0.md",
@@ -303,6 +313,11 @@
       "path": "RELEASE_NOTES_v0.14.0.md",
       "sha256": "5d9cb758f1d9e4d9e8b54df5cd4de4cc67d45e46f268f7773f17667f5cd43371",
       "size": 360
+    },
+    {
+      "path": "RELEASE_NOTES_v0.14.1.md",
+      "sha256": "386fcb3ccce494ce84f2667d11f5afd45a21b6e3fb8889f3ad6ab37633911721",
+      "size": 1924
     },
     {
       "path": "RELEASE_NOTES_v0.2.0.md",
@@ -425,6 +440,11 @@
       "size": 1441
     },
     {
+      "path": "TECHNICAL_ANALYSIS_v0.14.1.md",
+      "sha256": "1ada9057429722292ec201b85d94a714642d1d738f0a259a516669fdf19ddf5a",
+      "size": 1662
+    },
+    {
       "path": "TECHNICAL_ANALYSIS_v0.2.0.md",
       "sha256": "f6dbe7fde52e2926fd9ac4938e1dc6bbc5d144eb9245fb3a0ca0eb6ef0802d7b",
       "size": 1647
@@ -523,6 +543,11 @@
       "path": "TEST_RESULT_v0.14.0.md",
       "sha256": "0d441d7665dbdf8b975e4a4be7ed2c294eaebe60430312927402cc9a21cb3f98",
       "size": 382
+    },
+    {
+      "path": "TEST_RESULT_v0.14.1.md",
+      "sha256": "2110fa61fb29e1d531f3d09e0e1bc4e01a02e04a5472b644de973d28de4e21e9",
+      "size": 450
     },
     {
       "path": "TEST_RESULT_v0.2.0.md",
@@ -721,13 +746,13 @@
     },
     {
       "path": "package-lock.json",
-      "sha256": "19c3a7f579b98ac23d35e6fd732f47d80ead011f7821dc085aa23da9886bde3f",
+      "sha256": "3c492ba9c4bbc3469bcc69c5aa49a05c9385ecc3937d182fed3ebf2166171fda",
       "size": 32087
     },
     {
       "path": "package.json",
-      "sha256": "43b1a4cd0ca2a9ce69c0fa1d55988cb7ccad27571b4b57e00f798091c3147c09",
-      "size": 5629
+      "sha256": "3aa65a81d0ad9b05804ee6fccffdd6c954dac29fc23c16fd9ddff9d88870f636",
+      "size": 5735
     },
     {
       "path": "render.yaml",
@@ -806,38 +831,38 @@
     },
     {
       "path": "scripts/source-regression-test.mjs",
-      "sha256": "0e3168740656f54bda2ddde78b4657bec0ca1be0b634c8882dc5e5a0f6127957",
-      "size": 24772
+      "sha256": "111d41caf2aaf4199d4ed8b0ec5ab565a312e53effe64274303c3169fa350cc6",
+      "size": 24781
     },
     {
       "path": "scripts/v0.1.1-auth-reliability-regression-test.mjs",
-      "sha256": "e4fa9aaf8686e821d008dc8ee40d880e0894091354e7cf2417b1bead1a70f2ad",
-      "size": 4598
+      "sha256": "b0c56044823f67a98667a3ed64030fc93018b65c046c4583cb3474e62c1949e9",
+      "size": 4679
     },
     {
       "path": "scripts/v0.1.2-http-error-semantics-regression-test.mjs",
-      "sha256": "e513a343c4e5e4784f0b74b4d9118848a9dd7d871ab291997a6d5d2a770c06b0",
-      "size": 3349
+      "sha256": "ed2cac0bc488350a56293a85049c872e7ec839ae7ec1ca1c8f3b5ad688275f70",
+      "size": 3421
     },
     {
       "path": "scripts/v0.10.0-store-designer-v3-regression-test.mjs",
-      "sha256": "f8b7d7b880ab68db72739f3d43e21e5bf15ae4bf7d5671f473201dec70790282",
-      "size": 3797
+      "sha256": "37db934e67e393d6771ac339ba580b801e04d784a523b0c9b01fc198b38bf29e",
+      "size": 3869
     },
     {
       "path": "scripts/v0.11.0-operations-control-completion-regression-test.mjs",
-      "sha256": "14d5d0c148855cc7128fad26e48e84797edeb6c078d6804f59636460a6a464f4",
-      "size": 8640
+      "sha256": "2d5f88ee480c124c95178c27a73dedd34b1c1c8ad08df26e2e800126208b4a82",
+      "size": 8712
     },
     {
       "path": "scripts/v0.11.1-customer-experience-reliability-regression-test.mjs",
-      "sha256": "c96a928160748379910c44c3823bfe68350785595423471bf029b0f2a230ff60",
-      "size": 2641
+      "sha256": "07c32e99bfeb662cf104a5ae89c7c23c2e011248fe494485f53f6e392c4148ac",
+      "size": 2713
     },
     {
       "path": "scripts/v0.12.0-delivery-location-status-visual-regression-test.mjs",
-      "sha256": "3fb20260366f92004baf6669355fa3c4e3edbc8418497cb8e3f3f1e7c851c47c",
-      "size": 7221
+      "sha256": "3af8adb9b65952ec985f96ea00e7dc87e606b8a7fd0a1b62ed7eee3c173bf1b6",
+      "size": 7293
     },
     {
       "path": "scripts/v0.13.0-identity-fulfillment-notification-regression-test.mjs",
@@ -846,13 +871,18 @@
     },
     {
       "path": "scripts/v0.14.0-commerce-connector-v2-regression-test.mjs",
-      "sha256": "f2cba0c73cb21e277b7b4366b54902bec2fd1184eda7180b7885e6dc5d0ae03f",
-      "size": 1876
+      "sha256": "2aa90e3c52aa269c6f5b09b1dd525e45b48534a13878eec8ee7d4f4db9943b66",
+      "size": 1895
     },
     {
       "path": "scripts/v0.14.0-r1-r2-persistence-repair-regression-test.mjs",
-      "sha256": "212b11345304b830eace34bd9b4b0e8a5a63b384d63305d05259979f45c5641e",
-      "size": 3597
+      "sha256": "3a339cfe77978d6fd8ee000a75275202b8e2459d76d6c011580d365cbd753471",
+      "size": 3615
+    },
+    {
+      "path": "scripts/v0.14.1-customer-auth-pro-regression-test.mjs",
+      "sha256": "627718271b37d8c1ac46d955d44b8b648f0e6abdbce26355326e38002e401db0",
+      "size": 3842
     },
     {
       "path": "scripts/v0.2.0-catalog-inventory-regression-test.mjs",
@@ -871,43 +901,43 @@
     },
     {
       "path": "scripts/v0.4.1-runtime-integration-regression-test.mjs",
-      "sha256": "68c01619a9282d8acb5eee32a28f5238a657f4c15c07e144e3bee9ab7d816cb5",
-      "size": 2807
+      "sha256": "82c10abfd4fa171c54c68bc4137883ed5b8a0fb6d32c9e6005f2b7bb9e15bffe",
+      "size": 2828
     },
     {
       "path": "scripts/v0.4.2-commerce-runtime-reliability-regression-test.mjs",
-      "sha256": "b79df81baafe610821bd95fd9db5dc848c792d7331a3a1ec931ab8c24e207668",
-      "size": 4760
+      "sha256": "7267b92a9ddb9ca68972acbd980fa803511f8a15744ff1cabd9cc94723e6c789",
+      "size": 4832
     },
     {
       "path": "scripts/v0.5.0-cs-commerce-connector-regression-test.mjs",
-      "sha256": "5a71f2e42bebc94a12b221b91e26f6a4579ba7f013d415c2f2a86fcab4831d06",
-      "size": 8678
+      "sha256": "e4d5b86ee73c582c7d64b9fbfa51b408ba0e7ce29b3bc06c83668fdc4414494a",
+      "size": 8750
     },
     {
       "path": "scripts/v0.6.0-merchant-staff-rbac-regression-test.mjs",
-      "sha256": "9b0714bb378663c1bbfb1a14e8305ad0f655b6f450022c98978aa893d32f2383",
-      "size": 5541
+      "sha256": "16110ca1324cb8a32544f5bca5f03de094afe56b274b6b6d7e022f9dc788c0b5",
+      "size": 5550
     },
     {
       "path": "scripts/v0.7.0-platform-control-plane-regression-test.mjs",
-      "sha256": "4d4ea39e194bf10142710cfc52e84e4211ad425a271945731f3b43eb3aa0e396",
-      "size": 5409
+      "sha256": "397c6fe7fe372b30beddcc7d7e74cbbc194c8e9ad5721acb730c857d47c442ca",
+      "size": 5481
     },
     {
       "path": "scripts/v0.7.1-storefront-routing-regression-test.mjs",
-      "sha256": "82583da0ceb58bd214af2808890e6c1972762e42c1a2424405b430af9dd75d8a",
-      "size": 5150
+      "sha256": "9635daa709c44eb84d95c9f11a47807dd013331427eb082d1d9708475bb4c5c9",
+      "size": 5222
     },
     {
       "path": "scripts/v0.8.0-media-asset-library-regression-test.mjs",
-      "sha256": "ff826db7159f52d7f26794a246506c700d0d24f8533d45d2bad77d87d4d0430e",
-      "size": 3037
+      "sha256": "db993db6308c51488ddb436492d5c54a6873a7510f1251325aa55a955c91c45f",
+      "size": 3046
     },
     {
       "path": "scripts/v0.9.0-experience-commerce-workflow-regression-test.mjs",
-      "sha256": "9ef80c51c963738137f0774d343660eeb2a6ad01dc6f59f7495c329eac7a3f5a",
-      "size": 4079
+      "sha256": "bb7ca82695601f2b06b80c3e86fbef5066fa2b4f230ec7791788ea68e5127152",
+      "size": 4130
     },
     {
       "path": "scripts/windows/START-HERE.ps1",
@@ -921,8 +951,8 @@
     },
     {
       "path": "src/config.js",
-      "sha256": "e5dcc63a4a70da3a2c544a4cee15812996f3c3f7534958bb4f20e3e352544acc",
-      "size": 6820
+      "sha256": "5a607520a6c3bb1bfd353cdaeafe3ba3ec5686706b0523909414d49ac5895907",
+      "size": 8344
     },
     {
       "path": "src/core/audit.js",
@@ -981,13 +1011,13 @@
     },
     {
       "path": "src/modules/auth/customer-identity.js",
-      "sha256": "74c67fe3c6818245a183c5b729e184bdcf919c0c0ac9cb68fde9d33dfdb22c10",
-      "size": 9207
+      "sha256": "d086cb14d1d6c5b33498e0d294afad54dd172037490b16abb10c6267a9f16f94",
+      "size": 15266
     },
     {
       "path": "src/modules/auth/customer-routes.js",
-      "sha256": "373d8474e39c5a54ef6d88aa9bef4be6a71cf7ea9f4d5ce22198c2343f813c5d",
-      "size": 42823
+      "sha256": "3ae2015db8eab1cfc1cdf98d206fe59b3dd4e53651cfee6ac9ed9d335fde74aa",
+      "size": 45551
     },
     {
       "path": "src/modules/auth/merchant-routes.js",
@@ -1106,8 +1136,8 @@
     },
     {
       "path": "src/modules/merchant/tenant-routes.js",
-      "sha256": "fb442d8d3b4a107683dbe0c4aa22375d6224ca2a4eb98e00a28e54e76e0721ff",
-      "size": 10370
+      "sha256": "ddec40332a2d42ab31d3c9a7a770f7cbcc7b3974b09edcd5cb6bb0c4f5f55739",
+      "size": 10498
     },
     {
       "path": "src/modules/notifications/merchant-routes.js",
