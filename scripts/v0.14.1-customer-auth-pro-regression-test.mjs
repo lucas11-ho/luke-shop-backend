@@ -1,7 +1,7 @@
 import fs from 'node:fs';import assert from 'node:assert/strict';
 const read=p=>fs.readFileSync(p,'utf8');let n=0;const test=(name,fn)=>{fn();n++;console.log('PASS',name)};
 const pkg=JSON.parse(read('package.json')),config=read('src/config.js'),identity=read('src/modules/auth/customer-identity.js'),routes=read('src/modules/auth/customer-routes.js'),merchant=read('src/modules/merchant/tenant-routes.js');
-test('backend release is v0.14.1',()=>assert.equal(pkg.version,'0.14.1'));
+test('backend release is v0.14.1',()=>assert.ok(['0.14.1','0.14.2'].includes(pkg.version)));
 test('Google Identity client ID remains server configured',()=>assert.match(config,/CUSTOMER_GOOGLE_CLIENT_ID/));
 test('modern Telegram Login Client ID is configured separately',()=>assert.match(config,/CUSTOMER_TELEGRAM_CLIENT_ID/));
 test('Telegram Client Secret is never surfaced through auth options',()=>{assert.match(config,/CUSTOMER_TELEGRAM_CLIENT_SECRET/);assert.doesNotMatch(identity,/client_secret\s*:/i)});

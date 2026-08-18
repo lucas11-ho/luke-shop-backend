@@ -105,3 +105,9 @@ Storefront customer-service configuration may expose `chat_url`, `platform_route
 - `POST /v1/customer/auth/google` accepts Google `credential` and optional `turnstile_token`.
 - `POST /v1/customer/auth/telegram` accepts modern `id_token` + `nonce` (legacy payload remains compatibility fallback) and optional `turnstile_token`.
 - Email register/login accept `turnstile_token` when policy requires it.
+
+## v0.14.2 Customer map configuration
+
+`GET /v1/customer/location/map-config` — authenticated customer route returning browser-safe map readiness. When Google Maps is enabled, the response includes the referrer-restricted browser API key and optional Map ID. It never returns `GOOGLE_GEOCODING_API_KEY`.
+
+`POST /v1/customer/location/reverse-geocode` — authenticated, rate-limited reverse geocoding using the configured provider (`GOOGLE` or `NOMINATIM`). Body: `{ "latitude": number, "longitude": number }`. Response preserves the existing Luke delivery-address shape.

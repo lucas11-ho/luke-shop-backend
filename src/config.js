@@ -38,7 +38,7 @@ export function loadConfig() {
     .filter(Boolean);
 
   const config = {
-    release: '0.14.1-customer-auth-pro',
+    release: '0.14.2-google-maps-delivery-address-pro',
     nodeEnv,
     production,
     host: process.env.HOST?.trim() || '0.0.0.0',
@@ -95,6 +95,9 @@ export function loadConfig() {
     customerPhoneOtpHashSecret: process.env.CUSTOMER_PHONE_OTP_HASH_SECRET?.trim() || '',
     geocodingProvider: (process.env.GEOCODING_PROVIDER || 'NONE').trim().toUpperCase(),
     geocodingBaseUrl: process.env.GEOCODING_BASE_URL?.trim().replace(/\/$/,'') || '',
+    googleGeocodingApiKey: process.env.GOOGLE_GEOCODING_API_KEY?.trim() || '',
+    googleMapsBrowserApiKey: process.env.GOOGLE_MAPS_BROWSER_API_KEY?.trim() || '',
+    googleMapsMapId: process.env.GOOGLE_MAPS_MAP_ID?.trim() || '',
   };
 
   if (production && corsOrigins.length === 0) {
@@ -111,8 +114,12 @@ export function loadConfig() {
   if (production && !process.env.ASSET_PUBLIC_BASE_URL?.trim() && !(config.assetStorageDriver === 'R2' && config.r2PublicBaseUrl)) {
     throw new Error('ASSET_PUBLIC_BASE_URL is required in production unless R2_PUBLIC_BASE_URL is configured');
   }
-  if (!['NONE','NOMINATIM'].includes(config.geocodingProvider)) throw new Error('GEOCODING_PROVIDER must be NONE or NOMINATIM');
+  if (!['NONE','NOMINATIM','GOOGLE'].includes(config.geocodingProvider)) throw new Error('GEOCODING_PROVIDER must be NONE, NOMINATIM, or GOOGLE');
   if (config.geocodingProvider==='NOMINATIM' && !config.geocodingBaseUrl) throw new Error('GEOCODING_BASE_URL is required when GEOCODING_PROVIDER=NOMINATIM');
+  if (config.geocodingProvider==='GOOGLE') {
+    if (!config.googleGeocodingApiKey) throw new Error('GOOGLE_GEOCODING_API_KEY is required when GEOCODING_PROVIDER=GOOGLE');
+    if (!config.googleMapsBrowserApiKey) throw new Error('GOOGLE_MAPS_BROWSER_API_KEY is required when GEOCODING_PROVIDER=GOOGLE');
+  }
   if (config.customerTurnstileEnabled) {
     if (!config.customerTurnstileSiteKey) throw new Error('CUSTOMER_TURNSTILE_SITE_KEY is required when CUSTOMER_TURNSTILE_ENABLED=true');
     if (!config.customerTurnstileSecretKey) throw new Error('CUSTOMER_TURNSTILE_SECRET_KEY is required when CUSTOMER_TURNSTILE_ENABLED=true');
