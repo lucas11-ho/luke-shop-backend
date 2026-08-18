@@ -4,7 +4,7 @@ import { PERMISSIONS } from '../../core/permissions.js';
 import { publicId, uuid } from '../../core/identifiers.js';
 import { writeAudit } from '../../core/audit.js';
 import { resolveStore } from '../catalog/service.js';
-import { allowedMime, extensionForMime, fetchR2Asset, hasExpectedSignature, mediaTypeForMime, safeOriginalFilename, statLocalAsset, storagePublicUrl, streamLocalAsset, writeAsset } from './storage.js';
+import { allowedMime, extensionForMime, deleteAsset, fetchR2Asset, hasExpectedSignature, mediaTypeForMime, safeOriginalFilename, statLocalAsset, storagePublicUrl, streamLocalAsset, writeAsset } from './storage.js';
 
 const storeHeader=(request)=>request.headers['x-store-id']||null;
 const uploadTypes=['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm'];
@@ -39,7 +39,13 @@ export async function merchantAssetRoutes(app) {
     if(!hasExpectedSignature(request.body,mime)) throw errors.badRequest('ASSET_SIGNATURE_INVALID','Uploaded bytes do not match the declared media type');
     const store=await resolveStore(app.db,request.auth.tenantId,storeHeader(request),{requireActive:false}); const publicID=publicId('ast'); const ext=extensionForMime(mime); const storageKey=`${request.auth.tenantId}/${store.id}/${publicID}${ext}`; const visibility=request.query.visibility||'PUBLIC'; const provider=app.config.assetStorageDriver; const url=visibility==='PUBLIC'?storagePublicUrl(app.config,storageKey,publicID):null; const digest=createHash('sha256').update(request.body).digest('hex');
     await writeAsset(app.config,storageKey,request.body,mime);
-    const row=await app.db.transaction(async(client)=>{const id=uuid();const r=await client.query(`INSERT INTO media_assets(id,public_id,tenant_id,store_id,storage_provider,storage_key,visibility,media_type,mime_type,original_filename,file_size,sha256,url,uploaded_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING public_id,visibility,media_type,mime_type,original_filename,file_size,sha256,url,status,created_at`,[id,publicID,request.auth.tenantId,store.id,provider,storageKey,visibility,mediaType,mime,safeOriginalFilename(request.query.filename),request.body.length,digest,url,request.auth.actorId]);await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'assets.upload',targetType:'media_asset',targetId:id,metadata:{public_id:publicID,media_type:mediaType,visibility,mime_type:mime,file_size:request.body.length,storage_provider:provider},requestIp:request.ip,requestId:request.id});return r.rows[0];});
+    let row;
+    try {
+      row=await app.db.transaction(async(client)=>{const id=uuid();const r=await client.query(`INSERT INTO media_assets(id,public_id,tenant_id,store_id,storage_provider,storage_key,visibility,media_type,mime_type,original_filename,file_size,sha256,url,uploaded_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING public_id,visibility,media_type,mime_type,original_filename,file_size,sha256,url,status,created_at`,[id,publicID,request.auth.tenantId,store.id,provider,storageKey,visibility,mediaType,mime,safeOriginalFilename(request.query.filename),request.body.length,digest,url,request.auth.actorId]);await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'assets.upload',targetType:'media_asset',targetId:id,metadata:{public_id:publicID,media_type:mediaType,visibility,mime_type:mime,file_size:request.body.length,storage_provider:provider},requestIp:request.ip,requestId:request.id});return r.rows[0];});
+    } catch (error) {
+      try { await deleteAsset(app.config,storageKey); } catch (cleanupError) { app.log.error({err:cleanupError,request_id:request.id,storage_key:storageKey,storage_provider:provider},'asset rollback cleanup failed'); }
+      throw error;
+    }
     return reply.code(201).send({data:{asset:row}});
   });
 

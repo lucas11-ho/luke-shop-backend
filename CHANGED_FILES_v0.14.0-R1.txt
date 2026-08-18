@@ -1,0 +1,13 @@
+migrations/016_r2_storage_provider_persistence_repair.sql
+src/modules/assets/storage.js
+src/modules/assets/routes.js
+src/modules/auth/customer-routes.js
+scripts/v0.14.0-r1-r2-persistence-repair-regression-test.mjs
+package.json
+RELEASE_NOTES_v0.14.0-R1.md
+TECHNICAL_ANALYSIS_v0.14.0-R1.md
+DEPLOYMENT_CHECKLIST_v0.14.0-R1.md
+TEST_RESULT_v0.14.0-R1.md
+CHANGED_FILES_v0.14.0-R1.txt
+MANIFEST.json
+FILE_CHECKSUMS.sha256

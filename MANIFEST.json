@@ -1,8 +1,8 @@
 {
-  "release": "v0.14.0",
+  "release": "v0.14.0-R1",
   "repository": "luke-shop-backend",
-  "generated_at": "2026-08-17T04:19:58+07:00",
-  "file_count": 238,
+  "generated_at": "2026-08-18T15:54:00+07:00",
+  "file_count": 245,
   "files": [
     {
       "path": ".dockerignore",
@@ -73,6 +73,11 @@
       "path": "CHANGED_FILES_v0.13.0.txt",
       "sha256": "4fb0eabcdb80a5597ea52368286792b9d4c0948e0036f3811184ca78eb03a18e",
       "size": 1961
+    },
+    {
+      "path": "CHANGED_FILES_v0.14.0-R1.txt",
+      "sha256": "9257b4ee373657ddcb9754ad23cecc98e5d309d38210d1155b690a7714b5998e",
+      "size": 414
     },
     {
       "path": "CHANGED_FILES_v0.14.0.txt",
@@ -175,6 +180,11 @@
       "size": 827
     },
     {
+      "path": "DEPLOYMENT_CHECKLIST_v0.14.0-R1.md",
+      "sha256": "845b6e8f3a9ccdb761822e121afe1894bb0bd4a53e94dae74a315a7674b63d59",
+      "size": 1433
+    },
+    {
       "path": "DEPLOYMENT_CHECKLIST_v0.14.0.md",
       "sha256": "baa187ebc540a29acc7b38dee7325a4e94e8bcf0e5995b9af57e4bb965899916",
       "size": 486
@@ -241,8 +251,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "d30c2849e12e45a202e5cde478112d45b7c386f34b41c9587f4a0f6b7a42058d",
-      "size": 1332
+      "sha256": "44ed6725e8986e65791ef765dd8ba3b586db01cbb7effed7c9dd9acaeabbbcd4",
+      "size": 1856
     },
     {
       "path": "RELEASE_NOTES_v0.1.0.md",
@@ -283,6 +293,11 @@
       "path": "RELEASE_NOTES_v0.13.0.md",
       "sha256": "a069091b4a9b92c9b91e915c0ed0822c0ff996451103c11c6525d6688fbcbe10",
       "size": 1003
+    },
+    {
+      "path": "RELEASE_NOTES_v0.14.0-R1.md",
+      "sha256": "63a8be538eacc8d6ebfbecf70341458e3a5b7d5e25e60b9d3d9e9aacfbcdf3a5",
+      "size": 1431
     },
     {
       "path": "RELEASE_NOTES_v0.14.0.md",
@@ -400,6 +415,11 @@
       "size": 1536
     },
     {
+      "path": "TECHNICAL_ANALYSIS_v0.14.0-R1.md",
+      "sha256": "7b81a38d2523fe59e95afda40df68cfafc9096b49965f8d62cdddbcaf9aa8d29",
+      "size": 1332
+    },
+    {
       "path": "TECHNICAL_ANALYSIS_v0.14.0.md",
       "sha256": "293cbbf3f2e2983aed8908349551d63e0d11a74b86dc950e1d9a7fe5c028d2e4",
       "size": 1441
@@ -493,6 +513,11 @@
       "path": "TEST_RESULT_v0.13.0.md",
       "sha256": "13d950f08958c544c85c172a59ea9e3553c2a6f936f14b5502112bdeb550a0c2",
       "size": 1018
+    },
+    {
+      "path": "TEST_RESULT_v0.14.0-R1.md",
+      "sha256": "0bbe7c3adca969a29183cff6fc0c2789d67ff62f163ac1f9d9d2e635fd9359ff",
+      "size": 478
     },
     {
       "path": "TEST_RESULT_v0.14.0.md",
@@ -690,14 +715,19 @@
       "size": 877
     },
     {
+      "path": "migrations/016_r2_storage_provider_persistence_repair.sql",
+      "sha256": "361ad5e6640c0bc8cfeda8e78b6936058130df928405eb62f0f462b610eb7337",
+      "size": 537
+    },
+    {
       "path": "package-lock.json",
       "sha256": "19c3a7f579b98ac23d35e6fd732f47d80ead011f7821dc085aa23da9886bde3f",
       "size": 32087
     },
     {
       "path": "package.json",
-      "sha256": "106f74c9941f3543c80b3e61e2c5dfb385f80cdf72d668c9d6d4086092da550f",
-      "size": 5488
+      "sha256": "43b1a4cd0ca2a9ce69c0fa1d55988cb7ccad27571b4b57e00f798091c3147c09",
+      "size": 5629
     },
     {
       "path": "render.yaml",
@@ -820,6 +850,11 @@
       "size": 1876
     },
     {
+      "path": "scripts/v0.14.0-r1-r2-persistence-repair-regression-test.mjs",
+      "sha256": "212b11345304b830eace34bd9b4b0e8a5a63b384d63305d05259979f45c5641e",
+      "size": 3597
+    },
+    {
       "path": "scripts/v0.2.0-catalog-inventory-regression-test.mjs",
       "sha256": "2d9477662c8f4c83ef86ef80615517e1cf6f311d94dfe24d29996236b9c346bf",
       "size": 4047
@@ -936,13 +971,13 @@
     },
     {
       "path": "src/modules/assets/routes.js",
-      "sha256": "d1278809822f2d6e076f511f8353c2216710d573bce01a688c793228ec6f5311",
-      "size": 9377
+      "sha256": "ebeb41050847b12a2c815a746458bba9e88cb7348d8be0d769b6e840099abca9",
+      "size": 9675
     },
     {
       "path": "src/modules/assets/storage.js",
-      "sha256": "6e4734892c6afaeea4cc06d4d22efdd5cd7df1a2b3f44b3b331cf5714a25d0cc",
-      "size": 5707
+      "sha256": "76ffe029099ad570b013967e6140d0eb0deeae4d0ed23c03f2078a1e0854c463",
+      "size": 6372
     },
     {
       "path": "src/modules/auth/customer-identity.js",
@@ -951,8 +986,8 @@
     },
     {
       "path": "src/modules/auth/customer-routes.js",
-      "sha256": "e030d644416cb6a7c02df7075f32cf71fc7a36f4715cb0a38e54a87a038fb41d",
-      "size": 42537
+      "sha256": "373d8474e39c5a54ef6d88aa9bef4be6a71cf7ea9f4d5ce22198c2343f813c5d",
+      "size": 42823
     },
     {
       "path": "src/modules/auth/merchant-routes.js",

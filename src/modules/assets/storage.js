@@ -1,6 +1,6 @@
 import { createHash, createHmac } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { mkdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import path from 'node:path';
 
@@ -43,6 +43,7 @@ export async function writeLocalAsset(config, storageKey, body) {
   const full=localAssetPath(config,storageKey); await mkdir(path.dirname(full),{recursive:true}); await writeFile(full,body,{flag:'wx'}); return full;
 }
 export async function statLocalAsset(config,storageKey){return stat(localAssetPath(config,storageKey));}
+export async function deleteLocalAsset(config,storageKey){try{await unlink(localAssetPath(config,storageKey));return true;}catch(error){if(error?.code==='ENOENT')return false;throw error;}}
 export function streamLocalAsset(config,storageKey,range){return createReadStream(localAssetPath(config,storageKey),range);}
 
 function r2Request(config,{method='GET',storageKey,body=null,contentType='',range=''}){
@@ -57,6 +58,8 @@ function r2Request(config,{method='GET',storageKey,body=null,contentType='',rang
   return {url:`https://${host}${canonicalUri}`,headers:fetchHeaders,method,body:body||undefined};
 }
 export async function writeR2Asset(config,storageKey,body,mime){const req=r2Request(config,{method:'PUT',storageKey,body,contentType:mime});const res=await fetch(req.url,{method:req.method,headers:req.headers,body:req.body});if(!res.ok)throw new Error(`R2 upload failed (${res.status})`);}
+export async function deleteR2Asset(config,storageKey){const req=r2Request(config,{method:'DELETE',storageKey});const res=await fetch(req.url,{method:req.method,headers:req.headers});if(res.status===404)return false;if(!res.ok)throw new Error(`R2 delete failed (${res.status})`);return true;}
 export async function fetchR2Asset(config,storageKey,{range=''}={}){const req=r2Request(config,{method:'GET',storageKey,range});const res=await fetch(req.url,{method:req.method,headers:req.headers});if(res.status===404)return null;if(!res.ok&&res.status!==206)throw new Error(`R2 read failed (${res.status})`);return {status:res.status,size:Number(res.headers.get('content-length')||0),contentRange:res.headers.get('content-range')||'',acceptRanges:res.headers.get('accept-ranges')||'bytes',contentType:res.headers.get('content-type')||'',body:res.body?Readable.fromWeb(res.body):null};}
 export async function writeAsset(config,storageKey,body,mime){if(config.assetStorageDriver==='R2')return writeR2Asset(config,storageKey,body,mime);return writeLocalAsset(config,storageKey,body);}
+export async function deleteAsset(config,storageKey){if(config.assetStorageDriver==='R2')return deleteR2Asset(config,storageKey);return deleteLocalAsset(config,storageKey);}
 export function storagePublicUrl(config,storageKey,publicID){if(config.assetStorageDriver==='R2'&&config.r2PublicBaseUrl)return `${config.r2PublicBaseUrl}/${encodePath(storageKey)}`;return `${config.assetPublicBaseUrl}/v1/assets/public/${encodeURIComponent(publicID)}`;}
