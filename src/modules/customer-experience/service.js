@@ -1,5 +1,6 @@
 import { errors } from '../../core/errors.js';
 import { publicId, uuid } from '../../core/identifiers.js';
+import { normalizeExperienceExtensions, loadTenantExperiencePolicy, applyTenantExperiencePolicy } from './extension-normalizer.js';
 
 const NAV = new Set(['home','explore','cart','orders','profile']);
 const SECTION_TYPES = new Set(['announcement_bar','hero','hero_slider','categories','featured_products','promotion_banner','new_arrivals']);
@@ -71,6 +72,7 @@ export function normalizeExperienceConfig(input = {}) {
   const navigation = Array.isArray(raw.navigation) ? raw.navigation.filter((item) => NAV.has(item)).slice(0, 5) : ['home','explore','cart','orders','profile'];
   return {
     schema_version: 3,
+    ...normalizeExperienceExtensions(raw),
     status_visual_pack: oneOf(String(raw.status_visual_pack || 'AUTO').toUpperCase(), STATUS_VISUAL_PACKS, 'AUTO'),
     theme: {
       preset: text(theme.preset || THEME_DEFAULT.preset, 60),
@@ -190,7 +192,7 @@ export async function updateDraft(client, { tenantId, storeId, actorId, config, 
     `SELECT id,version,template_key,base_template_key,template_customized FROM storefront_experience_versions WHERE tenant_id=$1 AND store_id=$2 AND state='DRAFT' FOR UPDATE`,
     [tenantId, storeId],
   );
-  const normalized = normalizeExperienceConfig(config);
+  const normalized = applyTenantExperiencePolicy(normalizeExperienceConfig(config), await loadTenantExperiencePolicy(client, tenantId));
   if (current.rowCount) {
     const selectedTemplate = templateKey === undefined ? current.rows[0].template_key : templateKey;
     const baseTemplate = templateKey === undefined ? (current.rows[0].base_template_key || current.rows[0].template_key) : templateKey;

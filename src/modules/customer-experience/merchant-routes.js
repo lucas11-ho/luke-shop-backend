@@ -4,6 +4,7 @@ import { errors } from '../../core/errors.js';
 import { writeAudit } from '../../core/audit.js';
 import { resolveStore } from '../catalog/service.js';
 import { applyExperienceTemplate, loadExperience, loadExperienceCatalog, updateDraft, publishDraft, rollbackExperience } from './service.js';
+import { loadTenantExperiencePolicy } from './extension-normalizer.js';
 
 const storeHeader = (request) => request.headers['x-store-id'] || null;
 
@@ -26,11 +27,12 @@ export async function merchantCustomerExperienceRoutes(app) {
     preHandler: [app.requireMerchantAuth, app.requirePermission(PERMISSIONS.CUSTOMER_EXPERIENCE_READ)],
   }, async (request) => {
     const store = await resolveStore(app.db, request.auth.tenantId, storeHeader(request));
-    const [experience, meta] = await Promise.all([
+    const [experience, meta, experiencePolicy] = await Promise.all([
       loadExperience(app.db, request.auth.tenantId, store.id),
       storefrontMeta(app.db, request.auth.tenantId, store),
+      loadTenantExperiencePolicy(app.db, request.auth.tenantId),
     ]);
-    return { data: { ...meta, ...experience } };
+    return { data: { ...meta, ...experience, experience_policy: experiencePolicy } };
   });
 
   app.put('/v1/merchant/customer-experience/draft', {
