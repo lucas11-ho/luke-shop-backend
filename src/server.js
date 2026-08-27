@@ -1,3 +1,4 @@
+import './production-env-preflight.js';
 import { loadConfig } from './config.js';
 import { buildApp } from './app.js';
 
