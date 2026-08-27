@@ -38,7 +38,7 @@ export function loadConfig() {
     .filter(Boolean);
 
   const config = {
-    release: '0.14.2-google-maps-delivery-address-pro',
+    release: '0.15.0-platform-sync-localization-address-policy-foundation',
     nodeEnv,
     production,
     host: process.env.HOST?.trim() || '0.0.0.0',

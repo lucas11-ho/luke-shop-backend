@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 const checks=[];const ok=(name,cond)=>{if(!cond)throw new Error(`FAIL ${name}`);checks.push(name)};
 const read=(p)=>fs.readFileSync(new URL(`../${p}`,import.meta.url),'utf8');
-const pkg=JSON.parse(read('package.json'));ok('backend version 0.14.0',['0.14.0','0.14.1','0.14.2'].includes(pkg.version));
+const pkg=JSON.parse(read('package.json'));ok('backend version carries 0.14.0 connector forward',['0.14.0','0.14.1','0.14.2','0.15.0'].includes(pkg.version));
 const mig=read('migrations/015_luke_commerce_connector_v2.sql');ok('migration adds page path',mig.includes('page_path text'));ok('migration binds current order',mig.includes('current_order_id uuid')&&mig.includes('customer_service_contexts_current_order_fk'));ok('current-order FK nulls only optional order id',mig.includes('ON DELETE SET NULL (current_order_id)'));
 const context=read('src/modules/integrations/customer-service/customer-context-routes.js');ok('context accepts current order hint',context.includes('order_ref')&&context.includes('customer_id=$3'));ok('context returns readable customer code',context.includes('customer_code'));
 const token=read('src/core/tokens.js');ok('signed context carries commerce metadata',token.includes('current_order_ref')&&token.includes('customer_code')&&token.includes('page_path'));

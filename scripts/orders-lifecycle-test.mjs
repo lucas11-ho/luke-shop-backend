@@ -34,9 +34,9 @@ try{
   expect(await req({method:'POST',url:'/v1/merchant/inventory/adjustments',headers:merchantAuth,payload:{inventory_item_id:item.inventory_item_id,movement_type:'RECEIVE',quantity:10,reason:'Orders lifecycle stock'}}),201,'stock receive');
 
   const customer=expect(await req({method:'POST',url:'/v1/customer/auth/register',headers:tenantHeaders,payload:{email:customerEmail,password,display_name:'Buyer'}}),201,'customer register');
-  const customerAuth={authorization:`Bearer ${customer.data.tokens.access_token}`};const customerId=customer.data.customer.public_id;
+  const customerAuth={authorization:`Bearer ${customer.data.tokens.access_token}`};const customerId=customer.data.customer.id;
   const other=expect(await req({method:'POST',url:'/v1/customer/auth/register',headers:tenantHeaders,payload:{email:otherCustomerEmail,password,display_name:'Other Buyer'}}),201,'other customer register');
-  const otherId=other.data.customer.public_id;
+  const otherId=other.data.customer.id;
 
   const added=expect(await req({method:'POST',url:'/v1/customer/cart/items',headers:customerAuth,payload:{product_id:product.public_id,quantity:2,fulfillment_mode:'SHIPPING'}}),201,'cart add');
   assert.equal(added.data.cart.items[0].quantity,2);assert.equal(Number(added.data.cart.totals.grand_total),50);
