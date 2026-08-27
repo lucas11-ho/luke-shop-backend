@@ -34,6 +34,8 @@ jobs:
             npm install --no-audit --no-fund --registry=https://registry.npmjs.org/
           fi
       - run: npm run verify
+      - name: Production environment security preflight
+        run: node scripts/production-env-preflight-test.mjs
       - name: v0.4.1 runtime integration source guard
         run: npm run test:runtime:source
       - name: HTTP error semantics runtime
