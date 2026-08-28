@@ -7,6 +7,14 @@ const EXPLORE_HERO_STYLES = new Set(['standard','compact','minimal']);
 const EXPLORE_CATEGORY_STYLES = new Set(['rail','chips','cards']);
 const EXPLORE_PAGE_SIZES = new Set([12,24,36,48]);
 const EXPLORE_LOAD_MORE_STYLES = new Set(['button','quiet']);
+const CART_LAYOUTS = new Set(['standard','compact','spacious']);
+const CART_ITEM_STYLES = new Set(['cards','rows','minimal']);
+const CART_SUMMARY_STYLES = new Set(['sticky','standard','inline']);
+const CART_EMPTY_STYLES = new Set(['standard','minimal']);
+const CHECKOUT_LAYOUTS = new Set(['standard','focused','compact']);
+const CHECKOUT_SUMMARY_STYLES = new Set(['sticky','standard','inline']);
+const CHECKOUT_SECTION_STYLES = new Set(['cards','compact','outlined']);
+const CHECKOUT_SAVED_ADDRESS_STYLES = new Set(['cards','compact']);
 const cleanText = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const cleanLocale = (value) => {
   const raw = String(value || '').trim().replace('_', '-');
@@ -159,12 +167,45 @@ function normalizeExplore(raw = {}) {
   };
 }
 
+function normalizeCart(raw = {}) {
+  const source = raw.cart && typeof raw.cart === 'object' && !Array.isArray(raw.cart) ? raw.cart : {};
+  return {
+    layout: CART_LAYOUTS.has(source.layout) ? source.layout : 'standard',
+    item_style: CART_ITEM_STYLES.has(source.item_style) ? source.item_style : 'cards',
+    summary_style: CART_SUMMARY_STYLES.has(source.summary_style) ? source.summary_style : 'sticky',
+    empty_style: CART_EMPTY_STYLES.has(source.empty_style) ? source.empty_style : 'standard',
+    show_continue_shopping: source.show_continue_shopping !== false,
+    show_item_count: source.show_item_count !== false,
+    show_fulfillment: source.show_fulfillment !== false,
+    show_modifiers: source.show_modifiers !== false,
+    show_delivery_hint: source.show_delivery_hint !== false,
+    show_assurance: source.show_assurance !== false,
+  };
+}
+
+function normalizeCheckout(raw = {}) {
+  const source = raw.checkout && typeof raw.checkout === 'object' && !Array.isArray(raw.checkout) ? raw.checkout : {};
+  return {
+    layout: CHECKOUT_LAYOUTS.has(source.layout) ? source.layout : 'standard',
+    summary_style: CHECKOUT_SUMMARY_STYLES.has(source.summary_style) ? source.summary_style : 'sticky',
+    section_style: CHECKOUT_SECTION_STYLES.has(source.section_style) ? source.section_style : 'cards',
+    saved_address_style: CHECKOUT_SAVED_ADDRESS_STYLES.has(source.saved_address_style) ? source.saved_address_style : 'cards',
+    show_section_descriptions: source.show_section_descriptions !== false,
+    show_promotion_code: source.show_promotion_code !== false,
+    show_order_note: source.show_order_note !== false,
+    show_support: source.show_support !== false,
+    show_trust: source.show_trust !== false,
+  };
+}
+
 export function normalizeExperienceExtensions(raw = {}) {
   return {
     localization: normalizeLocalization(raw),
     delivery: normalizeAddressPolicy(raw),
     footer: normalizeFooter(raw),
     explore: normalizeExplore(raw),
+    cart: normalizeCart(raw),
+    checkout: normalizeCheckout(raw),
   };
 }
 
