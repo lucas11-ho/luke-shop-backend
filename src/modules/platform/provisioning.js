@@ -77,12 +77,12 @@ export async function provisionTenant(client, input, { platformUserId = null } =
   const normalizedExperience = normalizeExperienceConfig(experience);
   await client.query(
     `INSERT INTO storefront_experience_versions(id,public_id,tenant_id,store_id,version,state,config,template_key,base_template_key,template_customized,schema_version,published_at)
-     VALUES($1,$2,$3,$4,1,'PUBLISHED',$5::jsonb,$6,$6,false,3,now())`,
+     VALUES($1,$2,$3,$4,1,'PUBLISHED',$5::jsonb,$6,$6,false,4,now())`,
     [uuid(), publicId('sfx'), tenantId, storeId, JSON.stringify(normalizedExperience), templateKey],
   );
   await client.query(
     `INSERT INTO storefront_experience_versions(id,public_id,tenant_id,store_id,version,state,config,template_key,base_template_key,template_customized,schema_version)
-     VALUES($1,$2,$3,$4,2,'DRAFT',$5::jsonb,$6,$6,false,3)`,
+     VALUES($1,$2,$3,$4,2,'DRAFT',$5::jsonb,$6,$6,false,4)`,
     [uuid(), publicId('sfx'), tenantId, storeId, JSON.stringify(normalizedExperience), templateKey],
   );
 

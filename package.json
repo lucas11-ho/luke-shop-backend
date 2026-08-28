@@ -15,7 +15,7 @@
     "bootstrap:tenant": "node --env-file=.env src/scripts/bootstrap-tenant.js",
     "check": "node scripts/check-source.mjs",
     "test:source": "node scripts/source-regression-test.mjs",
-    "verify": "npm run check && npm run test:source && npm run test:auth:source && npm run test:http:core && npm run test:http:source && npm run test:catalog:source && npm run test:orders:core && npm run test:orders:source && npm run test:commerce:core && npm run test:commerce:source && npm run test:runtime:source && npm run test:commerce-defaults:core && npm run test:commerce-runtime:source && npm run test:cs-policy:core && npm run test:cs-connector:source && npm run test:staff-rbac:source && npm run test:platform:source && npm run test:routing:source && npm run test:assets:source && npm run test:experience-v2:source && npm run test:experience-v3:source && npm run test:operations-v011 && npm run test:experience-reliability-v0111 && npm run test:delivery-location-v012 && npm run test:identity-fulfillment-v013 && npm run test:commerce-connector-v2 && npm run test:r2-persistence-r014r1 && npm run test:auth-pro-v0141 && npm run test:maps-delivery-v0142 && npm run test:platform-sync-v0150",
+    "verify": "npm run check && npm run test:source && npm run test:auth:source && npm run test:http:core && npm run test:http:source && npm run test:catalog:source && npm run test:orders:core && npm run test:orders:source && npm run test:commerce:core && npm run test:commerce:source && npm run test:runtime:source && npm run test:commerce-defaults:core && npm run test:commerce-runtime:source && npm run test:cs-policy:core && npm run test:cs-connector:source && npm run test:staff-rbac:source && npm run test:platform:source && npm run test:routing:source && npm run test:assets:source && npm run test:experience-v2:source && npm run test:experience-v3:source && npm run test:operations-v011 && npm run test:experience-reliability-v0111 && npm run test:delivery-location-v012 && npm run test:identity-fulfillment-v013 && npm run test:commerce-connector-v2 && npm run test:r2-persistence-r014r1 && npm run test:auth-pro-v0141 && npm run test:maps-delivery-v0142 && npm run test:platform-sync-v0150 && npm run test:experience-v4",
     "ci": "npm run verify",
     "test:db": "node --env-file=.env.ci scripts/db-smoke-test.mjs",
     "test:auth-db": "node --env-file=.env.ci scripts/auth-lifecycle-test.mjs",
@@ -61,7 +61,8 @@
     "test:r2-persistence-r014r1": "node scripts/v0.14.0-r1-r2-persistence-repair-regression-test.mjs",
     "test:auth-pro-v0141": "node scripts/v0.14.1-customer-auth-pro-regression-test.mjs",
     "test:maps-delivery-v0142": "node scripts/v0.14.2-google-maps-delivery-address-pro-regression-test.mjs",
-    "test:platform-sync-v0150": "node scripts/v0.15.0-platform-sync-localization-regression-test.mjs"
+    "test:platform-sync-v0150": "node scripts/v0.15.0-platform-sync-localization-regression-test.mjs",
+    "test:experience-v4": "node scripts/v0.15.0-cx-v4-product-detail-schema-regression-test.mjs"
   },
   "dependencies": {
     "@fastify/cors": "11.3.0",
