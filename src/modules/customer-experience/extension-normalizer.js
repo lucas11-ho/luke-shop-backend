@@ -3,6 +3,10 @@ const COUNTRY = /^[A-Z]{2}$/;
 const FOOTER_DESTINATIONS = new Set(['home','explore','cart','orders','profile','signin']);
 const FOOTER_SOCIAL_NETWORKS = new Set(['facebook','instagram','telegram','tiktok','youtube','x']);
 const FOOTER_LAYOUTS = new Set(['columns','compact','minimal']);
+const EXPLORE_HERO_STYLES = new Set(['standard','compact','minimal']);
+const EXPLORE_CATEGORY_STYLES = new Set(['rail','chips','cards']);
+const EXPLORE_PAGE_SIZES = new Set([12,24,36,48]);
+const EXPLORE_LOAD_MORE_STYLES = new Set(['button','quiet']);
 const cleanText = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const cleanLocale = (value) => {
   const raw = String(value || '').trim().replace('_', '-');
@@ -137,11 +141,30 @@ function normalizeFooter(raw = {}) {
   };
 }
 
+function normalizeExplore(raw = {}) {
+  const source = raw.explore && typeof raw.explore === 'object' && !Array.isArray(raw.explore) ? raw.explore : {};
+  const categories = source.categories && typeof source.categories === 'object' && !Array.isArray(source.categories) ? source.categories : {};
+  const requestedPageSize = Number(source.page_size);
+  return {
+    hero_style: EXPLORE_HERO_STYLES.has(source.hero_style) ? source.hero_style : 'standard',
+    show_result_count: source.show_result_count !== false,
+    show_category_description: source.show_category_description === true,
+    categories: {
+      enabled: categories.enabled !== false,
+      style: EXPLORE_CATEGORY_STYLES.has(categories.style) ? categories.style : 'rail',
+      show_images: categories.show_images === true,
+    },
+    page_size: EXPLORE_PAGE_SIZES.has(requestedPageSize) ? requestedPageSize : 24,
+    load_more_style: EXPLORE_LOAD_MORE_STYLES.has(source.load_more_style) ? source.load_more_style : 'button',
+  };
+}
+
 export function normalizeExperienceExtensions(raw = {}) {
   return {
     localization: normalizeLocalization(raw),
     delivery: normalizeAddressPolicy(raw),
     footer: normalizeFooter(raw),
+    explore: normalizeExplore(raw),
   };
 }
 
