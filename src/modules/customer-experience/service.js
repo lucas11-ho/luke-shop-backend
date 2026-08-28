@@ -4,6 +4,7 @@ import { normalizeExperienceExtensions, loadTenantExperiencePolicy, applyTenantE
 
 const NAV = new Set(['home','explore','cart','orders','profile']);
 const SECTION_TYPES = new Set(['announcement_bar','hero','hero_slider','categories','featured_products','promotion_banner','new_arrivals']);
+const PRODUCT_DETAIL_INFO_BLOCKS = new Set(['availability','fulfillment','options']);
 const COLOR = /^#[0-9a-fA-F]{6}$/;
 const text = (value, max = 500) => String(value ?? '').slice(0, max);
 const color = (value, fallback) => COLOR.test(String(value || '')) ? String(value) : fallback;
@@ -20,6 +21,12 @@ const THEME_DEFAULT = Object.freeze({
 const TYPOGRAPHY_DEFAULT = Object.freeze({ preset:'SYSTEM_MINIMAL', heading_scale:'normal', body_scale:'normal', letter_spacing:'normal', button_case:'none' });
 const LAYOUT_DEFAULT = Object.freeze({ header:'logo_left', hero:'split', categories:'cards', product_grid:'four', product_card:'standard', mobile_nav:'standard' });
 const RESPONSIVE_DEFAULT = Object.freeze({ product_columns:{ desktop:4, tablet:3, mobile:2 }, hero_media_position:{ desktop:'right', tablet:'right', mobile:'below' } });
+const PRODUCT_DETAIL_DEFAULT = Object.freeze({
+  gallery_style:'thumbnails', buy_box_style:'sticky', mobile_buy_bar:true,
+  related_products:{ enabled:true, limit:4 },
+  visibility:{ category:true, discount:true, description:true, support:true },
+  info_blocks:['availability','fulfillment','options'],
+});
 export const STATUS_VISUAL_PACKS = Object.freeze(['AUTO','MODERN','FASHION_LUXURY','RESTAURANT_MODERN','ELECTRONICS_PRO','GROCERY_CLEAN','DIGITAL_CREATOR']);
 export const STATUS_VISUAL_ICON_KEYS = Object.freeze(['clock','alert-triangle','check-circle','cog','package','shopping-bag','truck','scooter','package-check','gift','receipt','chef-hat','home','radar','x-circle','unlock','sparkles','download']);
 export const STATUS_VISUAL_STATUSES = Object.freeze(['PENDING','PENDING_PAYMENT','PAYMENT_FAILED','PAID','CONFIRMED','PROCESSING','RESTAURANT_ACCEPTED','PREPARING','READY','SHIPPED','OUT_FOR_DELIVERY','PICKED_UP','DELIVERED','COMPLETED','FULFILLED','FAILED','CANCELLED','REFUNDED','ACCESS_GRANTED','AVAILABLE','DOWNLOADED']);
@@ -47,6 +54,30 @@ function normalizeSlides(value = []) {
   }));
 }
 
+function normalizeProductDetail(value = {}) {
+  const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const related = raw.related_products && typeof raw.related_products === 'object' && !Array.isArray(raw.related_products) ? raw.related_products : {};
+  const visibility = raw.visibility && typeof raw.visibility === 'object' && !Array.isArray(raw.visibility) ? raw.visibility : {};
+  const requestedBlocks = Array.isArray(raw.info_blocks) ? raw.info_blocks : PRODUCT_DETAIL_DEFAULT.info_blocks;
+  const infoBlocks = [...new Set(requestedBlocks.filter((item) => PRODUCT_DETAIL_INFO_BLOCKS.has(item)))].slice(0, PRODUCT_DETAIL_INFO_BLOCKS.size);
+  return {
+    gallery_style: oneOf(raw.gallery_style,['thumbnails','stacked'],PRODUCT_DETAIL_DEFAULT.gallery_style),
+    buy_box_style: oneOf(raw.buy_box_style,['sticky','standard'],PRODUCT_DETAIL_DEFAULT.buy_box_style),
+    mobile_buy_bar: raw.mobile_buy_bar !== false,
+    related_products: {
+      enabled: related.enabled !== false,
+      limit: integer(related.limit,1,8,PRODUCT_DETAIL_DEFAULT.related_products.limit),
+    },
+    visibility: {
+      category: visibility.category !== false,
+      discount: visibility.discount !== false,
+      description: visibility.description !== false,
+      support: visibility.support !== false,
+    },
+    info_blocks: infoBlocks.length ? infoBlocks : [],
+  };
+}
+
 export function normalizeExperienceConfig(input = {}) {
   const raw = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   const theme = raw.theme && typeof raw.theme === 'object' ? raw.theme : {};
@@ -71,7 +102,7 @@ export function normalizeExperienceConfig(input = {}) {
   }).filter(Boolean) : [];
   const navigation = Array.isArray(raw.navigation) ? raw.navigation.filter((item) => NAV.has(item)).slice(0, 5) : ['home','explore','cart','orders','profile'];
   return {
-    schema_version: 3,
+    schema_version: 4,
     ...normalizeExperienceExtensions(raw),
     status_visual_pack: oneOf(String(raw.status_visual_pack || 'AUTO').toUpperCase(), STATUS_VISUAL_PACKS, 'AUTO'),
     theme: {
@@ -119,6 +150,7 @@ export function normalizeExperienceConfig(input = {}) {
         mobile: oneOf(heroPosition.mobile,['right','left','below','hidden'],RESPONSIVE_DEFAULT.hero_media_position.mobile),
       },
     },
+    product_detail: normalizeProductDetail(raw.product_detail),
     navigation: navigation.length ? [...new Set(navigation)] : ['home','explore','cart','orders','profile'],
     home: { sections: sections.length ? sections : [
       { id:'hero',type:'hero',enabled:true,title:'',body:'',image_url:'',video_url:'',poster_url:'',product_ref:'',cta_label:'',cta_path:'',limit:8,slides:[] },
@@ -199,7 +231,7 @@ export async function updateDraft(client, { tenantId, storeId, actorId, config, 
     const customized = templateCustomized === undefined ? Boolean(baseTemplate) : Boolean(templateCustomized);
     const updated = await client.query(
       `UPDATE storefront_experience_versions
-          SET config=$1::jsonb,template_key=$2,base_template_key=$3,template_customized=$4,schema_version=3,created_by=$5,updated_at=now()
+          SET config=$1::jsonb,template_key=$2,base_template_key=$3,template_customized=$4,schema_version=4,created_by=$5,updated_at=now()
         WHERE id=$6
         RETURNING public_id,version,state,config,template_key,base_template_key,template_customized,schema_version,updated_at`,
       [JSON.stringify(normalized), selectedTemplate, baseTemplate, customized, actorId, current.rows[0].id],
@@ -210,7 +242,7 @@ export async function updateDraft(client, { tenantId, storeId, actorId, config, 
   const customized = templateCustomized === undefined ? Boolean(templateKey) : Boolean(templateCustomized);
   const inserted = await client.query(
     `INSERT INTO storefront_experience_versions(id,public_id,tenant_id,store_id,version,state,config,template_key,base_template_key,template_customized,schema_version,created_by)
-     VALUES($1,$2,$3,$4,$5,'DRAFT',$6::jsonb,$7,$8,$9,3,$10)
+     VALUES($1,$2,$3,$4,$5,'DRAFT',$6::jsonb,$7,$8,$9,4,$10)
      RETURNING public_id,version,state,config,template_key,base_template_key,template_customized,schema_version,updated_at`,
     [uuid(), publicId('sfx'), tenantId, storeId, max.rows[0].v + 1, JSON.stringify(normalized), templateKey ?? null, templateKey ?? null, customized, actorId],
   );
@@ -238,13 +270,13 @@ export async function publishDraft(client, { tenantId, storeId, actorId }) {
   const normalized = normalizeExperienceConfig(draft.rows[0].config);
   await client.query(`UPDATE storefront_experience_versions SET state='ARCHIVED',updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND state='PUBLISHED'`, [tenantId, storeId]);
   const published = await client.query(
-    `UPDATE storefront_experience_versions SET state='PUBLISHED',config=$1::jsonb,schema_version=3,published_by=$2,published_at=now(),updated_at=now()
+    `UPDATE storefront_experience_versions SET state='PUBLISHED',config=$1::jsonb,schema_version=4,published_by=$2,published_at=now(),updated_at=now()
       WHERE id=$3 RETURNING public_id,version,state,config,template_key,base_template_key,template_customized,schema_version,published_at`, [JSON.stringify(normalized), actorId, draft.rows[0].id],
   );
   const nextVersion = draft.rows[0].version + 1;
   await client.query(
     `INSERT INTO storefront_experience_versions(id,public_id,tenant_id,store_id,version,state,config,template_key,base_template_key,template_customized,schema_version,created_by)
-     VALUES($1,$2,$3,$4,$5,'DRAFT',$6::jsonb,$7,$8,$9,3,$10)`,
+     VALUES($1,$2,$3,$4,$5,'DRAFT',$6::jsonb,$7,$8,$9,4,$10)`,
     [uuid(), publicId('sfx'), tenantId, storeId, nextVersion, JSON.stringify(normalized), draft.rows[0].template_key, draft.rows[0].base_template_key || draft.rows[0].template_key, draft.rows[0].template_customized, actorId],
   );
   return published.rows[0];
@@ -262,13 +294,13 @@ export async function rollbackExperience(client, { tenantId, storeId, actorId, v
   const publishedVersion = max.rows[0].v + 1;
   const published = await client.query(
     `INSERT INTO storefront_experience_versions(id,public_id,tenant_id,store_id,version,state,config,template_key,base_template_key,template_customized,schema_version,published_by,published_at)
-     VALUES($1,$2,$3,$4,$5,'PUBLISHED',$6::jsonb,$7,$8,$9,3,$10,now())
+     VALUES($1,$2,$3,$4,$5,'PUBLISHED',$6::jsonb,$7,$8,$9,4,$10,now())
      RETURNING public_id,version,state,config,template_key,base_template_key,template_customized,schema_version,published_at`,
     [uuid(), publicId('sfx'), tenantId, storeId, publishedVersion, JSON.stringify(normalized), source.rows[0].template_key, source.rows[0].base_template_key || source.rows[0].template_key, source.rows[0].template_customized, actorId],
   );
   await client.query(
     `INSERT INTO storefront_experience_versions(id,public_id,tenant_id,store_id,version,state,config,template_key,base_template_key,template_customized,schema_version,created_by)
-     VALUES($1,$2,$3,$4,$5,'DRAFT',$6::jsonb,$7,$8,$9,3,$10)`,
+     VALUES($1,$2,$3,$4,$5,'DRAFT',$6::jsonb,$7,$8,$9,4,$10)`,
     [uuid(), publicId('sfx'), tenantId, storeId, publishedVersion + 1, JSON.stringify(normalized), source.rows[0].template_key, source.rows[0].base_template_key || source.rows[0].template_key, source.rows[0].template_customized, actorId],
   );
   return published.rows[0];
