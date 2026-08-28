@@ -1,5 +1,8 @@
 const LOCALE = /^[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})?$/;
 const COUNTRY = /^[A-Z]{2}$/;
+const FOOTER_DESTINATIONS = new Set(['home','explore','cart','orders','profile','signin']);
+const FOOTER_SOCIAL_NETWORKS = new Set(['facebook','instagram','telegram','tiktok','youtube','x']);
+const FOOTER_LAYOUTS = new Set(['columns','compact','minimal']);
 const cleanText = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const cleanLocale = (value) => {
   const raw = String(value || '').trim().replace('_', '-');
@@ -10,6 +13,16 @@ const cleanLocale = (value) => {
 const cleanCountry = (value) => {
   const code = String(value || '').trim().toUpperCase();
   return COUNTRY.test(code) ? code : '';
+};
+const cleanHttpsUrl = (value) => {
+  const raw = cleanText(value, 1500);
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'https:' ? url.toString() : '';
+  } catch {
+    return '';
+  }
 };
 
 function sanitizeTree(value, depth = 0) {
@@ -88,10 +101,47 @@ function normalizeAddressPolicy(raw = {}) {
   };
 }
 
+function normalizeFooter(raw = {}) {
+  const source = raw.footer && typeof raw.footer === 'object' && !Array.isArray(raw.footer) ? raw.footer : {};
+  const groups = Array.isArray(source.groups) ? source.groups.slice(0, 4).map((group, groupIndex) => {
+    const links = Array.isArray(group?.links) ? group.links.slice(0, 6).map((link, linkIndex) => {
+      const destination = FOOTER_DESTINATIONS.has(link?.destination) ? link.destination : '';
+      if (!destination) return null;
+      return {
+        id: cleanText(link?.id || `link-${groupIndex + 1}-${linkIndex + 1}`, 80),
+        label: cleanText(link?.label, 80),
+        destination,
+      };
+    }).filter(Boolean) : [];
+    return {
+      id: cleanText(group?.id || `group-${groupIndex + 1}`, 80),
+      title: cleanText(group?.title, 80),
+      links,
+    };
+  }) : [];
+  const socialLinks = Array.isArray(source.social_links) ? source.social_links.slice(0, 6).map((link) => {
+    const network = String(link?.network || '').trim().toLowerCase();
+    const url = cleanHttpsUrl(link?.url);
+    if (!FOOTER_SOCIAL_NETWORKS.has(network) || !url) return null;
+    return { network, url };
+  }).filter(Boolean) : [];
+  return {
+    enabled: source.enabled === true,
+    layout: FOOTER_LAYOUTS.has(source.layout) ? source.layout : 'columns',
+    tagline: cleanText(source.tagline, 240),
+    show_brand: source.show_brand !== false,
+    show_copyright: source.show_copyright !== false,
+    copyright_text: cleanText(source.copyright_text, 180),
+    groups,
+    social_links: socialLinks,
+  };
+}
+
 export function normalizeExperienceExtensions(raw = {}) {
   return {
     localization: normalizeLocalization(raw),
     delivery: normalizeAddressPolicy(raw),
+    footer: normalizeFooter(raw),
   };
 }
 
