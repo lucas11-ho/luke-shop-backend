@@ -28,7 +28,7 @@ const migration=fs.readFileSync(new URL('../migrations/019_vip_loyalty_foundatio
 for(const token of ['loyalty.read','loyalty.manage','CREATE TABLE vip_programs','CREATE TABLE vip_levels','CREATE TABLE vip_benefits','CREATE TABLE customer_vip_status','CREATE TABLE vip_tier_history']) assert.match(migration,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
 const rbacBackfill=fs.readFileSync(new URL('../migrations/020_vip_loyalty_rbac_backfill.sql',import.meta.url),'utf8');
 for(const token of ['customers.read','customers.status.manage','tenant.settings.write','loyalty.read','loyalty.manage','ON CONFLICT DO NOTHING']) assert.match(rbacBackfill,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
-assert.match(rbacBackfill,/customer_admin\.role_id\s*=\s*tenant_admin\.role_id/);
+assert.match(rbacBackfill,/tenant_admin\.role_id\s*=\s*customer_admin\.role_id/);
 assert.match(rbacBackfill,/customer_admin\.permission_key\s*=\s*'customers\.status\.manage'/);
 assert.match(rbacBackfill,/tenant_admin\.permission_key\s*=\s*'tenant\.settings\.write'/);
 const merchant=fs.readFileSync(new URL('../src/modules/loyalty/merchant-routes.js',import.meta.url),'utf8');
