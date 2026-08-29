@@ -2,7 +2,7 @@ import { errors } from '../../core/errors.js';
 import { publicId, uuid } from '../../core/identifiers.js';
 import { loadProviderCredentials } from './provider-credentials.js';
 import { resolveSettlementQuote } from './settlement-quote.js';
-import { createTokenPayPrepayment, TOKENPAY_PROVIDER_KEY } from './providers/tokenpay.js';
+import { createTokenPayPrepayment, TOKENPAY_PROVIDER_KEY } from './providers/tokenpay-prepayment-live.js';
 
 const upper=value=>String(value||'').trim().toUpperCase();
 const clamp=(value,min,max,fallback)=>{const n=Number(value);return Number.isFinite(n)?Math.max(min,Math.min(Math.trunc(n),max)):fallback;};
