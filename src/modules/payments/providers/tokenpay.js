@@ -82,7 +82,7 @@ export async function createTokenPayPrepayment({credentials,config,order,attempt
     attach:order.public_id,locale:config.locale==='zh_cn'?'zh_cn':'en',notify_url:notifyUrl,return_url:returnUrl,order_type:'platform_order',
   };
   if(config.to_address) payload.to_address=String(config.to_address).trim();
-  const body=JSON.stringify(payload),timestamp=Math.floor(Date.now()/1000).toString(),nonce=tokenPayNonce();
+  const body=JSON.stringify(payload),timestamp=Date.now().toString(),nonce=tokenPayNonce();
   const signature=signTokenPayRequest({path:TOKENPAY_PREPAY_PATH,timestamp,nonce,body,appSecret});
   const response=await fetchImpl(`${TOKENPAY_API_BASE}${TOKENPAY_PREPAY_PATH}`,{
     method:'POST',headers:{Authorization:buildTokenPayAuthorization({appId,mchId,timestamp,nonce,signature}),'Content-Type':'application/json','User-Agent':'Shope TokenPay Gateway/1.0'},body,
