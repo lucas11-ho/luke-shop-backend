@@ -11,7 +11,12 @@ for(const token of ['upgrade_policy','IMMEDIATE','SCHEDULED','MANUAL','CREATE TA
 assert.doesNotMatch(migration,/cashback_balance/i);
 assert.match(migration,/UNIQUE \(tenant_id, store_id, source_key\)/);
 assert.match(migration,/Historical orders are intentionally NOT backfilled/);
-assert.match(migration,/entry_type='ADMIN_ADJUSTMENT' AND amount>0/);
+assert.match(migration,/vip_reward_ledger_expiry_idx ON vip_reward_ledger\(tenant_id, store_id, expires_at\) WHERE entry_type='EARN' AND expires_at IS NOT NULL;/,'migration 021 must stay byte-compatible with the already-applied production version');
+assert.doesNotMatch(migration,/entry_type='ADMIN_ADJUSTMENT' AND amount>0/,'do not rewrite applied migration 021');
+
+const migration022=fs.readFileSync(new URL('../migrations/022_vip_reward_expiry_index.sql',import.meta.url),'utf8');
+assert.match(migration022,/DROP INDEX IF EXISTS vip_reward_ledger_expiry_idx/);
+assert.match(migration022,/entry_type='ADMIN_ADJUSTMENT' AND amount>0/,'expiry-index hardening belongs in migration 022');
 
 const execution=fs.readFileSync(new URL('../src/modules/loyalty/execution.js',import.meta.url),'utf8');
 for(const token of ['resolveVipCheckoutBenefits','persistVipOrderSnapshots','processVipOrderCompletion','processVipOrderRefund','expireDueVipRewards','vipRewardAccount','adjustVipReward','vipExecutionSummary'])assert.ok(execution.includes(token),`missing execution function ${token}`);
@@ -46,4 +51,4 @@ assert.ok(routes.includes('PERMISSIONS.LOYALTY_MANAGE'));
 const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 assert.ok(app.includes('loyaltyExecutionRoutes'));
 
-console.log('PASS VIP v1.1 frozen checkout benefits, free-delivery execution, completion-only cashback, immutable reward ledger, non-duplicating expiry/refund accounting, entitlements, immediate-upgrade policy, and reward APIs');
+console.log('PASS VIP v1.1 frozen checkout benefits, immutable migration history, free-delivery execution, completion-only cashback, immutable reward ledger, non-duplicating expiry/refund accounting, entitlements, immediate-upgrade policy, and reward APIs');

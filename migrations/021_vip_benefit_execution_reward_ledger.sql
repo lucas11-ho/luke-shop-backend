@@ -71,8 +71,7 @@ CREATE TABLE vip_reward_ledger (
   FOREIGN KEY (tenant_id, store_id, related_entry_id) REFERENCES vip_reward_ledger(tenant_id, store_id, id) ON DELETE RESTRICT
 );
 CREATE INDEX vip_reward_ledger_customer_idx ON vip_reward_ledger(tenant_id, store_id, customer_id, created_at DESC, id);
-CREATE INDEX vip_reward_ledger_expiry_idx ON vip_reward_ledger(tenant_id, store_id, expires_at)
-  WHERE (entry_type='EARN' OR (entry_type='ADMIN_ADJUSTMENT' AND amount>0)) AND expires_at IS NOT NULL;
+CREATE INDEX vip_reward_ledger_expiry_idx ON vip_reward_ledger(tenant_id, store_id, expires_at) WHERE entry_type='EARN' AND expires_at IS NOT NULL;
 CREATE INDEX vip_reward_ledger_order_idx ON vip_reward_ledger(tenant_id, store_id, order_id, created_at DESC) WHERE order_id IS NOT NULL;
 
 CREATE TABLE vip_entitlements (
