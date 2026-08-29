@@ -65,7 +65,7 @@
     "test:experience-v4": "node scripts/v0.15.0-cx-v4-product-detail-schema-regression-test.mjs",
     "test:experience-explore-a3": "node scripts/v0.15.0-cx-v4-explore-page-schema-regression-test.mjs",
     "test:experience-cart-checkout-a4": "node scripts/v0.15.0-cx-v4-cart-checkout-a4-regression-test.mjs",
-    "test:payments-tokenpay-v1": "node scripts/v0.15.0-tokenpay-payment-gateway-regression-test.mjs"
+    "test:payments-tokenpay-v1": "node scripts/v0.15.0-tokenpay-payment-gateway-regression-test.mjs && node scripts/v0.15.0-tokenpay-response-data-signature-regression-test.mjs"
   },
   "dependencies": {
     "@fastify/cors": "11.3.0",
