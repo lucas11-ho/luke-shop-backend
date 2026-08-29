@@ -38,7 +38,7 @@ assert.match(service,/refunded_amount/);
 assert.match(service,/to_status='COMPLETED'/);
 assert.match(service,/JOIN tenant_settings ts ON ts\.tenant_id=vp\.tenant_id/);
 assert.match(service,/ts\.currency/);
-assert.doesNotMatch(service,/s\.currency/);
+assert.doesNotMatch(service,/\bs\.currency\b/);
 assert.doesNotMatch(service,/cashback_balance|synthetic|estimated_value/i);
 const customer=fs.readFileSync(new URL('../src/modules/loyalty/customer-routes.js',import.meta.url),'utf8');
 assert.ok(customer.includes('/v1/customer/vip'));
