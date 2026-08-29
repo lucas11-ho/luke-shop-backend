@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { errors } from '../../../core/errors.js';
 import {
   TOKENPAY_API_BASE,
@@ -140,25 +141,60 @@ function replyCandidates({rawBody,parsed,responseTimestamp,responseNonce,request
   return {candidates,rawData,dataBody,canonicalBody};
 }
 
+function verifyDecryptedSemanticData({decrypted,parsed,responseTimestamp,responseNonce,signature,appSecret}){
+  if(typeof decrypted!=='string'||!parsed||typeof parsed!=='object'||parsed.data===undefined) return false;
+  const firstLf=decrypted.indexOf('\n');
+  if(firstLf<0) return false;
+  const secondLf=decrypted.indexOf('\n',firstLf+1);
+  if(secondLf<0||decrypted.indexOf('\n',secondLf+1)!==-1) return false;
+  const signedTimestamp=decrypted.slice(0,firstLf);
+  const signedNonce=decrypted.slice(firstLf+1,secondLf);
+  const signedDataText=decrypted.slice(secondLf+1);
+  if(!safeEqual(signedTimestamp,String(responseTimestamp||''))||!safeEqual(signedNonce,String(responseNonce||''))) return false;
+  let signedData;
+  try{signedData=JSON.parse(signedDataText)}catch{return false;}
+  if(!isDeepStrictEqual(signedData,parsed.data)) return false;
+  const reEncrypted=tokenPayEncryptSignature(decrypted,appSecret);
+  return safeEqual(reEncrypted,signature);
+}
+
 export function verifyTokenPayReplySignature({rawBody,signature,appSecret,responseTimestamp,responseNonce,requestTimestamp,requestNonce}){
-  if(!responseTimestamp||!responseNonce||!signature||typeof rawBody!=='string') return {ok:false,mode:null,decrypted:null,candidates:[],rawData:null,dataBody:null,canonicalBody:null};
+  if(!responseTimestamp||!responseNonce||!signature||typeof rawBody!=='string') return {ok:false,mode:null,decrypted:null,candidates:[],rawData:null,dataBody:null,canonicalBody:null,semanticDataMatch:false};
   let parsed;
-  try{parsed=JSON.parse(rawBody)}catch{return {ok:false,mode:null,decrypted:null,candidates:[],rawData:null,dataBody:null,canonicalBody:null};}
+  try{parsed=JSON.parse(rawBody)}catch{return {ok:false,mode:null,decrypted:null,candidates:[],rawData:null,dataBody:null,canonicalBody:null,semanticDataMatch:false};}
   const decrypted=decryptTokenPayReplySignature(signature,appSecret);
   const {candidates,rawData,dataBody,canonicalBody}=replyCandidates({rawBody,parsed,responseTimestamp,responseNonce,requestTimestamp,requestNonce});
   if(typeof decrypted==='string'){
     for(const candidate of candidates){
       if(!safeEqual(decrypted,candidate.plaintext)) continue;
       const reEncrypted=tokenPayEncryptSignature(candidate.plaintext,appSecret);
-      if(safeEqual(reEncrypted,signature)) return {ok:true,mode:`DECRYPT_${candidate.mode}`,decrypted,candidates,rawData,dataBody,canonicalBody};
+      if(safeEqual(reEncrypted,signature)) return {ok:true,mode:`DECRYPT_${candidate.mode}`,decrypted,candidates,rawData,dataBody,canonicalBody,semanticDataMatch:false};
     }
+    const semanticDataMatch=verifyDecryptedSemanticData({decrypted,parsed,responseTimestamp,responseNonce,signature,appSecret});
+    if(semanticDataMatch) return {ok:true,mode:'DECRYPT_RESPONSE_TNB_SEMANTIC_DATA',decrypted,candidates,rawData,dataBody,canonicalBody,semanticDataMatch:true};
   }
-  return {ok:false,mode:null,decrypted,candidates,rawData,dataBody,canonicalBody};
+  return {ok:false,mode:null,decrypted,candidates,rawData,dataBody,canonicalBody,semanticDataMatch:false};
 }
 
 export function tokenPayReplySignatureDiagnostic({response,rawBody,signature,verification,responseTimestamp,responseNonce,requestTimestamp,requestNonce}){
   const decrypted=verification?.decrypted;
   const includes=value=>typeof decrypted==='string'&&typeof value==='string'&&value.length>0&&decrypted.includes(value);
+  let threeLine=false,firstLineMatches=false,secondLineMatches=false,thirdLineJson=false,thirdLineSemanticData=false;
+  if(typeof decrypted==='string'){
+    const parts=decrypted.split('\n');
+    threeLine=parts.length===3;
+    if(threeLine){
+      firstLineMatches=safeEqual(parts[0],String(responseTimestamp||''));
+      secondLineMatches=safeEqual(parts[1],String(responseNonce||''));
+      try{
+        const third=JSON.parse(parts[2]);
+        thirdLineJson=true;
+        let parsed;
+        try{parsed=JSON.parse(rawBody)}catch{}
+        thirdLineSemanticData=Boolean(parsed&&typeof parsed==='object'&&isDeepStrictEqual(third,parsed.data));
+      }catch{}
+    }
+  }
   return {
     status:Number(response?.status||0),
     signature_length:String(signature||'').length,
@@ -175,6 +211,12 @@ export function tokenPayReplySignatureDiagnostic({response,rawBody,signature,ver
     contains_data:includes(verification?.dataBody),
     contains_raw_body:includes(rawBody),
     contains_canonical_body:includes(verification?.canonicalBody),
+    decrypted_three_line:threeLine,
+    decrypted_first_line_matches_response_timestamp:firstLineMatches,
+    decrypted_second_line_matches_response_nonce:secondLineMatches,
+    decrypted_third_line_json:thirdLineJson,
+    decrypted_third_line_semantic_data:thirdLineSemanticData,
+    semantic_data_match:Boolean(verification?.semanticDataMatch),
     candidate_count:Array.isArray(verification?.candidates)?verification.candidates.length:0,
     response_header_names:[...new Set(Array.from(response?.headers?.keys?.()||[],name=>String(name).toLowerCase()))].sort(),
   };
