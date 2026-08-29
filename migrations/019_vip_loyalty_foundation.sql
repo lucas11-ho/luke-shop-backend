@@ -105,7 +105,7 @@ CREATE TABLE customer_vip_status (
   UNIQUE(tenant_id,store_id,id),
   FOREIGN KEY (tenant_id,store_id) REFERENCES stores(tenant_id,id) ON DELETE CASCADE,
   FOREIGN KEY (tenant_id,customer_id) REFERENCES customers(tenant_id,id) ON DELETE CASCADE,
-  FOREIGN KEY (tenant_id,store_id,level_id) REFERENCES vip_levels(tenant_id,store_id,id) ON DELETE SET NULL
+  FOREIGN KEY (tenant_id,store_id,level_id) REFERENCES vip_levels(tenant_id,store_id,id) ON DELETE RESTRICT
 );
 CREATE INDEX customer_vip_status_level_idx ON customer_vip_status(tenant_id,store_id,level_id,updated_at DESC);
 CREATE INDEX customer_vip_status_evaluated_idx ON customer_vip_status(tenant_id,store_id,evaluated_at);
@@ -125,9 +125,9 @@ CREATE TABLE vip_tier_history (
   created_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (tenant_id,store_id) REFERENCES stores(tenant_id,id) ON DELETE CASCADE,
   FOREIGN KEY (tenant_id,customer_id) REFERENCES customers(tenant_id,id) ON DELETE CASCADE,
-  FOREIGN KEY (tenant_id,store_id,from_level_id) REFERENCES vip_levels(tenant_id,store_id,id) ON DELETE SET NULL,
-  FOREIGN KEY (tenant_id,store_id,to_level_id) REFERENCES vip_levels(tenant_id,store_id,id) ON DELETE SET NULL,
-  FOREIGN KEY (tenant_id,store_id,source_order_id) REFERENCES orders(tenant_id,store_id,id) ON DELETE SET NULL
+  FOREIGN KEY (tenant_id,store_id,from_level_id) REFERENCES vip_levels(tenant_id,store_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id,store_id,to_level_id) REFERENCES vip_levels(tenant_id,store_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id,store_id,source_order_id) REFERENCES orders(tenant_id,store_id,id) ON DELETE RESTRICT
 );
 CREATE INDEX vip_tier_history_customer_idx ON vip_tier_history(tenant_id,store_id,customer_id,created_at DESC,id DESC);
 
