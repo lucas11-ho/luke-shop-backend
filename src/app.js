@@ -108,6 +108,9 @@ export async function buildApp(config) {
     if (error.code === '23505') {
       return reply.code(409).send({ error: { code: 'CONFLICT', message: 'Resource already exists', request_id: request.id } });
     }
+    if (error.code === '23514') {
+      return reply.code(400).send({ error: { code: 'CONSTRAINT_VIOLATION', message: 'Request violates a business rule', request_id: request.id } });
+    }
     const clientError = normalizeHttpClientError(error);
     if (clientError) {
       return reply.code(clientError.statusCode).send({ error: {
