@@ -25,7 +25,7 @@ export async function paymentDetails(db,tenantId,orderRef,{customerId=null}={}){
   const params=[tenantId,orderRef];let customerFilter='';if(customerId){params.push(customerId);customerFilter=` AND o.customer_id=$${params.length}`;}
   const payment=await db.query(`SELECT op.public_id AS id,op.status,op.amount,op.currency,op.provider_reference,op.customer_reference,
       op.failure_code,op.failure_message,op.paid_at,op.failed_at,op.cancelled_at,op.refunded_amount,op.created_at,op.updated_at,
-      pm.public_id AS payment_method_id,pm.code AS payment_method_code,pm.name AS payment_method_name,pm.provider_type,
+      pm.public_id AS payment_method_id,pm.code AS payment_method_code,pm.name AS payment_method_name,pm.provider_type,pm.provider_key,
       o.public_id AS order_id,o.order_number
     FROM order_payments op JOIN orders o ON o.id=op.order_id AND o.tenant_id=op.tenant_id AND o.store_id=op.store_id
     LEFT JOIN payment_methods pm ON pm.id=op.payment_method_id AND pm.tenant_id=op.tenant_id AND pm.store_id=op.store_id
