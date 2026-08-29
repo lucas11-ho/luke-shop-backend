@@ -41,11 +41,16 @@ async function stageAttempt(app,{tenantId,customerId,orderRef,idempotencyKey}){
     if(duplicate.rowCount){
       const existing=duplicate.rows[0];
       if(existing.status==='PROCESSING'&&existing.response_summary?.payment_url) return {existing:true,order,attempt:existing};
-      if(existing.status==='SUCCEEDED'||(existing.status==='PROCESSING'&&order.provider_reference)) return {existing:true,order,attempt:existing};
+      if(existing.status==='SUCCEEDED') return {existing:true,order,attempt:existing};
       if(existing.status==='PROCESSING') throw errors.conflict('PAYMENT_SESSION_PROCESSING','Payment session creation is already in progress');
+      if(existing.status==='FAILED') throw errors.conflict('PAYMENT_SESSION_IDEMPOTENCY_REPLAY','Previous payment session request with this idempotency key failed; retry with a new key');
     }
 
     let attempt=(await client.query(`SELECT * FROM payment_attempts WHERE tenant_id=$1 AND store_id=$2 AND payment_id=$3 ORDER BY attempt_no DESC LIMIT 1 FOR UPDATE`,[tenantId,order.store_id,order.payment_db_id])).rows[0];
+    if(attempt?.status==='PROCESSING'){
+      if(attempt.response_summary?.payment_url) return {existing:true,order,attempt};
+      throw errors.conflict('PAYMENT_SESSION_PROCESSING','Payment session creation is already in progress');
+    }
     if(!attempt||attempt.status!=='CREATED'){
       const next=(await client.query(`SELECT COALESCE(max(attempt_no),0)::int+1 AS n FROM payment_attempts WHERE payment_id=$1`,[order.payment_db_id])).rows[0].n;
       const inserted=await client.query(`INSERT INTO payment_attempts(id,public_id,tenant_id,store_id,payment_id,attempt_no,status,idempotency_key,request_summary)
@@ -55,14 +60,21 @@ async function stageAttempt(app,{tenantId,customerId,orderRef,idempotencyKey}){
         ]);
       attempt=inserted.rows[0];
     }else{
-      await client.query(`UPDATE payment_attempts SET idempotency_key=COALESCE(idempotency_key,$1),request_summary=request_summary||$2::jsonb WHERE id=$3`,[
+      await client.query(`UPDATE payment_attempts SET idempotency_key=$1,request_summary=request_summary||$2::jsonb WHERE id=$3`,[
         idempotencyKey,JSON.stringify({source:'customer_payment_session',provider_key:TOKENPAY_PROVIDER_KEY}),attempt.id,
       ]);
-      attempt={...attempt,idempotency_key:attempt.idempotency_key||idempotencyKey};
+      attempt={...attempt,idempotency_key:idempotencyKey};
     }
     await client.query(`UPDATE payment_attempts SET status='PROCESSING' WHERE id=$1`,[attempt.id]);
     await client.query(`UPDATE order_payments SET status='PROCESSING',failure_code=NULL,failure_message=NULL,failed_at=NULL,updated_at=now() WHERE id=$1`,[order.payment_db_id]);
     return {order,attempt:{...attempt,status:'PROCESSING'}};
+  });
+}
+
+async function failStagedSession(app,order,attempt,error){
+  await app.db.transaction(async client=>{
+    await client.query(`UPDATE payment_attempts SET status='FAILED',failure_code=$1,failure_message=$2,completed_at=now() WHERE id=$3 AND status='PROCESSING'`,[error?.code||'TOKENPAY_SESSION_FAILED',String(error?.message||'TokenPay session failed').slice(0,500),attempt.id]);
+    await client.query(`UPDATE order_payments SET status=CASE WHEN status='PROCESSING' THEN 'PENDING' ELSE status END,failure_code=$1,failure_message=$2,updated_at=now() WHERE id=$3`,[error?.code||'TOKENPAY_SESSION_FAILED',String(error?.message||'TokenPay session failed').slice(0,500),order.payment_db_id]);
   });
 }
 
@@ -74,20 +86,19 @@ export async function createCustomerPaymentSession(app,{tenantId,customerId,orde
   if(staged.existing&&attempt?.response_summary?.payment_url){
     return {action:'REDIRECT',status:'PROCESSING',url:attempt.response_summary.payment_url,provider_reference:attempt.provider_reference||order.provider_reference||null,expires_at:attempt.response_summary.expires_at||null};
   }
+  if(staged.existing&&attempt?.status==='SUCCEEDED') return {action:'NONE',status:'PAID'};
 
-  const providerConfig=order.public_config&&typeof order.public_config==='object'?order.public_config:{};
-  const configuredCurrency=upper(providerConfig.currency),orderCurrency=upper(order.currency);
-  if(!configuredCurrency||configuredCurrency!==orderCurrency){
-    await app.db.query(`UPDATE payment_attempts SET status='FAILED',failure_code='PAYMENT_CURRENCY_UNSUPPORTED',failure_message=$1,completed_at=now() WHERE id=$2`,[`TokenPay ${configuredCurrency||'currency'} does not match order currency ${orderCurrency}`,attempt.id]);
-    await app.db.query(`UPDATE order_payments SET status='PENDING',updated_at=now() WHERE id=$1`,[order.payment_db_id]);
-    throw errors.conflict('PAYMENT_CURRENCY_UNSUPPORTED','TokenPay currency must exactly match the order currency; Shope does not perform implicit FX conversion');
-  }
-  const credentials=await loadProviderCredentials(app,app.db,{tenantId,storeId:order.store_id,paymentMethodId:order.payment_method_id,providerKey:TOKENPAY_PROVIDER_KEY});
-  const urls=paymentUrls(app,{public_id:order.method_public_id},order);
-  const remainingSeconds=order.reservation_expires_at?Math.floor((new Date(order.reservation_expires_at).getTime()-Date.now())/1000):1800;
-  if(remainingSeconds<60) throw errors.conflict('PAYMENT_RESERVATION_EXPIRED','Inventory reservation is too close to expiry to create a payment session');
-  const expireSecond=Math.min(clamp(providerConfig.expire_second,60,86400,600),remainingSeconds);
   try{
+    const providerConfig=order.public_config&&typeof order.public_config==='object'?order.public_config:{};
+    const configuredCurrency=upper(providerConfig.currency),orderCurrency=upper(order.currency);
+    if(!configuredCurrency||configuredCurrency!==orderCurrency){
+      throw errors.conflict('PAYMENT_CURRENCY_UNSUPPORTED','TokenPay currency must exactly match the order currency; Shope does not perform implicit FX conversion');
+    }
+    const credentials=await loadProviderCredentials(app,app.db,{tenantId,storeId:order.store_id,paymentMethodId:order.payment_method_id,providerKey:TOKENPAY_PROVIDER_KEY});
+    const urls=paymentUrls(app,{public_id:order.method_public_id},order);
+    const remainingSeconds=order.reservation_expires_at?Math.floor((new Date(order.reservation_expires_at).getTime()-Date.now())/1000):1800;
+    if(remainingSeconds<60) throw errors.conflict('PAYMENT_RESERVATION_EXPIRED','Inventory reservation is too close to expiry to create a payment session');
+    const expireSecond=Math.min(clamp(providerConfig.expire_second,60,86400,600),remainingSeconds);
     const result=await createTokenPayPrepayment({credentials,config:providerConfig,order,attemptRef:attempt.public_id,notifyUrl:urls.notifyUrl,returnUrl:urls.returnUrl,expireSecond});
     const expiresAt=new Date(Date.now()+result.expires_in*1000).toISOString();
     await app.db.transaction(async client=>{
@@ -100,10 +111,7 @@ export async function createCustomerPaymentSession(app,{tenantId,customerId,orde
     });
     return {action:'REDIRECT',status:'PROCESSING',url:result.payment_url,provider_reference:result.prepay_id,expires_at:expiresAt};
   }catch(error){
-    await app.db.transaction(async client=>{
-      await client.query(`UPDATE payment_attempts SET status='FAILED',failure_code=$1,failure_message=$2,completed_at=now() WHERE id=$3`,[error?.code||'TOKENPAY_SESSION_FAILED',String(error?.message||'TokenPay session failed').slice(0,500),attempt.id]);
-      await client.query(`UPDATE order_payments SET status='PENDING',failure_code=$1,failure_message=$2,updated_at=now() WHERE id=$3`,[error?.code||'TOKENPAY_SESSION_FAILED',String(error?.message||'TokenPay session failed').slice(0,500),order.payment_db_id]);
-    });
+    await failStagedSession(app,order,attempt,error);
     throw error;
   }
 }
