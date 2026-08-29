@@ -18,6 +18,55 @@ function safeEqual(a,b){
 
 function sha256(value){return crypto.createHash('sha256').update(String(value??''),'utf8').digest('hex');}
 
+function rawTopLevelObjectProperty(json,key){
+  const source=String(json||'');
+  let i=0,depth=0;
+  while(i<source.length){
+    const ch=source[i];
+    if(ch==='{'){depth++;i++;continue;}
+    if(ch==='}'){depth--;i++;continue;}
+    if(ch!=='"'){i++;continue;}
+    const tokenStart=i;
+    i++;
+    let escaped=false;
+    while(i<source.length){
+      const c=source[i++];
+      if(escaped){escaped=false;continue;}
+      if(c==='\\'){escaped=true;continue;}
+      if(c==='"') break;
+    }
+    const token=source.slice(tokenStart,i);
+    let decoded='';
+    try{decoded=JSON.parse(token);}catch{continue;}
+    if(depth!==1||decoded!==key) continue;
+    let j=i;
+    while(/\s/.test(source[j]||''))j++;
+    if(source[j++]!==':') continue;
+    while(/\s/.test(source[j]||''))j++;
+    if(source[j]!=='{') return null;
+    const start=j,stack=[];
+    let inString=false,stringEscape=false;
+    for(;j<source.length;j++){
+      const c=source[j];
+      if(inString){
+        if(stringEscape)stringEscape=false;
+        else if(c==='\\')stringEscape=true;
+        else if(c==='"')inString=false;
+        continue;
+      }
+      if(c==='"'){inString=true;continue;}
+      if(c==='{')stack.push('}');
+      else if(c==='[')stack.push(']');
+      else if(stack.length&&c===stack[stack.length-1]){
+        stack.pop();
+        if(stack.length===0)return source.slice(start,j+1);
+      }
+    }
+    return null;
+  }
+  return null;
+}
+
 export function tokenPayNonce(){return crypto.randomBytes(16).toString('hex');}
 
 export function tokenPayRequestPlaintext({path,timestamp,nonce,body}){
@@ -45,26 +94,31 @@ export function verifyTokenPayMessage({timestamp,nonce,body,signature,appSecret}
 }
 
 export function verifyTokenPayResponse({timestamp,nonce,rawBody,signature,appSecret}){
-  if(!timestamp||!nonce||!signature||typeof rawBody!=='string') return {ok:false,mode:null,canonicalBody:null,dataBody:null};
-  if(verifyTokenPayMessage({timestamp,nonce,body:rawBody,signature,appSecret})) return {ok:true,mode:'RAW',canonicalBody:null,dataBody:null};
+  if(!timestamp||!nonce||!signature||typeof rawBody!=='string') return {ok:false,mode:null,canonicalBody:null,rawDataBody:null,dataBody:null};
+  if(verifyTokenPayMessage({timestamp,nonce,body:rawBody,signature,appSecret})) return {ok:true,mode:'RAW',canonicalBody:null,rawDataBody:null,dataBody:null};
   let parsed;
-  try{parsed=JSON.parse(rawBody);}catch{return {ok:false,mode:null,canonicalBody:null,dataBody:null};}
+  try{parsed=JSON.parse(rawBody);}catch{return {ok:false,mode:null,canonicalBody:null,rawDataBody:null,dataBody:null};}
   const canonicalBody=JSON.stringify(parsed);
   if(canonicalBody!==rawBody&&verifyTokenPayMessage({timestamp,nonce,body:canonicalBody,signature,appSecret})){
-    return {ok:true,mode:'CANONICAL_JSON',canonicalBody,dataBody:null};
+    return {ok:true,mode:'CANONICAL_JSON',canonicalBody,rawDataBody:null,dataBody:null};
+  }
+  const rawDataBody=rawTopLevelObjectProperty(rawBody,'data');
+  if(typeof rawDataBody==='string'&&verifyTokenPayMessage({timestamp,nonce,body:rawDataBody,signature,appSecret})){
+    return {ok:true,mode:'RAW_DATA_JSON',canonicalBody,rawDataBody,dataBody:null};
   }
   const dataBody=parsed&&typeof parsed==='object'&&parsed.data!==undefined?JSON.stringify(parsed.data):null;
   if(typeof dataBody==='string'&&verifyTokenPayMessage({timestamp,nonce,body:dataBody,signature,appSecret})){
-    return {ok:true,mode:'DATA_JSON',canonicalBody,dataBody};
+    return {ok:true,mode:'DATA_JSON',canonicalBody,rawDataBody,dataBody};
   }
-  return {ok:false,mode:null,canonicalBody,dataBody};
+  return {ok:false,mode:null,canonicalBody,rawDataBody,dataBody};
 }
 
-export function tokenPayResponseSignatureDiagnostic({response,timestamp,nonce,body,signature,appSecret,canonicalBody=null,dataBody=null}){
-  let expected='',canonicalExpected='',dataExpected='';
+export function tokenPayResponseSignatureDiagnostic({response,timestamp,nonce,body,signature,appSecret,canonicalBody=null,rawDataBody=null,dataBody=null}){
+  let expected='',canonicalExpected='',rawDataExpected='',dataExpected='';
   if(timestamp&&nonce&&signature&&typeof body==='string'){
     expected=tokenPayEncryptSignature(tokenPayResponsePlaintext({timestamp,nonce,body}),appSecret);
     if(typeof canonicalBody==='string') canonicalExpected=tokenPayEncryptSignature(tokenPayResponsePlaintext({timestamp,nonce,body:canonicalBody}),appSecret);
+    if(typeof rawDataBody==='string') rawDataExpected=tokenPayEncryptSignature(tokenPayResponsePlaintext({timestamp,nonce,body:rawDataBody}),appSecret);
     if(typeof dataBody==='string') dataExpected=tokenPayEncryptSignature(tokenPayResponsePlaintext({timestamp,nonce,body:dataBody}),appSecret);
   }
   const headerNames=[];
@@ -77,10 +131,13 @@ export function tokenPayResponseSignatureDiagnostic({response,timestamp,nonce,bo
     body_bytes:Buffer.byteLength(String(body||''),'utf8'),body_sha256:sha256(body),
     canonical_body_bytes:typeof canonicalBody==='string'?Buffer.byteLength(canonicalBody,'utf8'):0,
     canonical_body_sha256:typeof canonicalBody==='string'?sha256(canonicalBody):'',
+    raw_data_body_bytes:typeof rawDataBody==='string'?Buffer.byteLength(rawDataBody,'utf8'):0,
+    raw_data_body_sha256:typeof rawDataBody==='string'?sha256(rawDataBody):'',
     data_body_bytes:typeof dataBody==='string'?Buffer.byteLength(dataBody,'utf8'):0,
     data_body_sha256:typeof dataBody==='string'?sha256(dataBody):'',
     expected_signature_sha256:expected?sha256(expected):'',
     canonical_expected_signature_sha256:canonicalExpected?sha256(canonicalExpected):'',
+    raw_data_expected_signature_sha256:rawDataExpected?sha256(rawDataExpected):'',
     data_expected_signature_sha256:dataExpected?sha256(dataExpected):'',
     received_signature_sha256:signature?sha256(signature):'',
     response_header_names:[...new Set(headerNames)].sort(),
@@ -139,7 +196,7 @@ export async function createTokenPayPrepayment({credentials,config,order,attempt
   if(responseTimestamp||responseNonce||responseSignature){
     const verification=verifyTokenPayResponse({timestamp:responseTimestamp,nonce:responseNonce,rawBody:raw,signature:responseSignature,appSecret});
     if(!verification.ok){
-      const diagnostic=tokenPayResponseSignatureDiagnostic({response,timestamp:responseTimestamp,nonce:responseNonce,body:raw,signature:responseSignature,appSecret,canonicalBody:verification.canonicalBody,dataBody:verification.dataBody});
+      const diagnostic=tokenPayResponseSignatureDiagnostic({response,timestamp:responseTimestamp,nonce:responseNonce,body:raw,signature:responseSignature,appSecret,canonicalBody:verification.canonicalBody,rawDataBody:verification.rawDataBody,dataBody:verification.dataBody});
       console.warn('TOKENPAY_RESPONSE_SIGNATURE_DIAGNOSTIC',JSON.stringify(diagnostic));
       throw errors.unavailable('TOKENPAY_RESPONSE_SIGNATURE_INVALID','TokenPay response signature verification failed');
     }
