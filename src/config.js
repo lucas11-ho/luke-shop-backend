@@ -93,6 +93,9 @@ export function loadConfig() {
     customerPhoneOtpWebhookUrl: process.env.CUSTOMER_PHONE_OTP_WEBHOOK_URL?.trim() || '',
     customerPhoneOtpWebhookBearer: process.env.CUSTOMER_PHONE_OTP_WEBHOOK_BEARER?.trim() || '',
     customerPhoneOtpHashSecret: process.env.CUSTOMER_PHONE_OTP_HASH_SECRET?.trim() || '',
+    paymentCredentialEncryptionKey: process.env.PAYMENT_CREDENTIAL_ENCRYPTION_KEY?.trim() || '',
+    paymentPublicBaseUrl: process.env.PAYMENT_PUBLIC_BASE_URL?.trim().replace(/\/$/,'') || '',
+    customerWebBaseUrl: process.env.CUSTOMER_WEB_BASE_URL?.trim().replace(/\/$/,'') || '',
     geocodingProvider: (process.env.GEOCODING_PROVIDER || 'NONE').trim().toUpperCase(),
     geocodingBaseUrl: process.env.GEOCODING_BASE_URL?.trim().replace(/\/$/,'') || '',
     googleGeocodingApiKey: process.env.GOOGLE_GEOCODING_API_KEY?.trim() || '',
@@ -127,6 +130,13 @@ export function loadConfig() {
   }
   if (config.customerTelegramClientId && !/^\d+$/.test(config.customerTelegramClientId)) throw new Error('CUSTOMER_TELEGRAM_CLIENT_ID must be the numeric Client ID issued by BotFather');
   if (config.customerPhoneOtpWebhookUrl && config.customerPhoneOtpHashSecret.length < 32) throw new Error('CUSTOMER_PHONE_OTP_HASH_SECRET must be at least 32 characters when phone OTP is configured');
+  if (config.paymentCredentialEncryptionKey && config.paymentCredentialEncryptionKey.length < 48) throw new Error('PAYMENT_CREDENTIAL_ENCRYPTION_KEY must contain at least 48 characters when configured');
+  for (const [name,value] of [['PAYMENT_PUBLIC_BASE_URL',config.paymentPublicBaseUrl],['CUSTOMER_WEB_BASE_URL',config.customerWebBaseUrl]]) {
+    if (value) {
+      let url; try { url=new URL(value); } catch { throw new Error(`${name} must be a valid absolute URL`); }
+      if (production && url.protocol !== 'https:') throw new Error(`${name} must use HTTPS in production`);
+    }
+  }
   if (production && config.csContextSigningSecret === config.csServiceSigningSecret) {
     throw new Error('CS_CONTEXT_SIGNING_SECRET and CS_SERVICE_SIGNING_SECRET must be different in production');
   }
