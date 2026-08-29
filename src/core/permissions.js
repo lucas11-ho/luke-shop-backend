@@ -5,6 +5,8 @@ export const PERMISSIONS = Object.freeze({
   STORES_MANAGE: 'stores.manage',
   CUSTOMERS_READ: 'customers.read',
   CUSTOMERS_STATUS_MANAGE: 'customers.status.manage',
+  LOYALTY_READ: 'loyalty.read',
+  LOYALTY_MANAGE: 'loyalty.manage',
   CATALOG_READ: 'catalog.read',
   CATALOG_WRITE: 'catalog.write',
   INVENTORY_READ: 'inventory.read',
