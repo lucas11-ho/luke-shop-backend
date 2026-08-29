@@ -91,7 +91,7 @@ CREATE TABLE order_digital_entitlements (
   UNIQUE(tenant_id,store_id,order_item_id),
   UNIQUE(tenant_id,store_id,id),
   FOREIGN KEY (tenant_id,store_id,order_id) REFERENCES orders(tenant_id,store_id,id) ON DELETE RESTRICT,
-  FOREIGN KEY (tenant_id,store_id,order_item_id) REFERENCES order_items(tenant_id,store_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id,store_id,order_id,order_item_id) REFERENCES order_items(tenant_id,store_id,order_id,id) ON DELETE RESTRICT,
   FOREIGN KEY (tenant_id,customer_id) REFERENCES customers(tenant_id,id) ON DELETE RESTRICT,
   FOREIGN KEY (tenant_id,store_id,product_id) REFERENCES products(tenant_id,store_id,id) ON DELETE RESTRICT
 );
