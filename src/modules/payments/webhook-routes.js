@@ -44,7 +44,7 @@ export async function paymentWebhookRoutes(app){
       await rejectEvent(app,{method,eventId,eventType,summary:{reason:'ORDER_REFERENCE_MISSING'},requestId:request.id});
       throw errors.badRequest('TOKENPAY_ORDER_REFERENCE_MISSING','TokenPay callback did not contain the Shope payment attempt reference');
     }
-    const found=await app.db.query(`SELECT pa.id AS attempt_id,pa.public_id AS attempt_public_id,pa.payment_id,
+    const found=await app.db.query(`SELECT pa.id AS attempt_id,pa.public_id AS attempt_public_id,pa.payment_id,pa.request_summary AS attempt_request_summary,
         op.id AS payment_db_id,op.status AS payment_status,op.amount,op.currency,op.payment_method_id,
         o.*
       FROM payment_attempts pa
@@ -61,7 +61,10 @@ export async function paymentWebhookRoutes(app){
     const providerReference=String(resource.transaction_id||resource.prepay_id||resource.id||'').trim()||null;
     const outcome=tokenPayNotificationOutcome(event,resource);
     const amount=tokenPayNotificationAmount(resource),currency=tokenPayNotificationCurrency(resource);
-    const summary={attempt_ref:attemptRef,provider_reference:providerReference,event_type:eventType,outcome,amount:Number.isFinite(amount)?amount:null,currency:currency||null,state:String(resource.trade_state||resource.status||resource.payment_status||'').slice(0,80)};
+    const quote=payment.attempt_request_summary?.settlement_quote&&typeof payment.attempt_request_summary.settlement_quote==='object'?payment.attempt_request_summary.settlement_quote:null;
+    const expectedAmount=quote?.target_amount??payment.amount;
+    const expectedCurrency=upper(quote?.target_currency||payment.currency);
+    const summary={attempt_ref:attemptRef,provider_reference:providerReference,event_type:eventType,outcome,amount:Number.isFinite(amount)?amount:null,currency:currency||null,state:String(resource.trade_state||resource.status||resource.payment_status||'').slice(0,80),expected_amount:Number(expectedAmount),expected_currency:expectedCurrency,source_amount:quote?.source_amount??Number(payment.amount),source_currency:upper(quote?.source_currency||payment.currency)};
 
     const inserted=await app.db.query(`INSERT INTO payment_events(tenant_id,store_id,payment_id,provider_key,provider_event_id,event_type,payload_summary,outcome,request_id)
       VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,'RECEIVED',$8)
@@ -79,11 +82,11 @@ export async function paymentWebhookRoutes(app){
       await app.db.query(`UPDATE payment_events SET outcome='IGNORED' WHERE id=$1`,[paymentEventId]);
       return reply.type('text/plain').send('success');
     }
-    if(!Number.isFinite(amount)||!currency||!numericEqual(payment.amount,amount)||upper(payment.currency)!==currency){
+    if(!Number.isFinite(amount)||!currency||!numericEqual(expectedAmount,amount)||expectedCurrency!==currency){
       await app.db.query(`UPDATE payment_events SET outcome='REJECTED',payload_summary=payload_summary||$1::jsonb WHERE id=$2`,[
-        JSON.stringify({reason:'AMOUNT_OR_CURRENCY_MISMATCH',expected_amount:Number(payment.amount),expected_currency:upper(payment.currency)}),paymentEventId,
+        JSON.stringify({reason:'AMOUNT_OR_CURRENCY_MISMATCH',expected_amount:Number(expectedAmount),expected_currency:expectedCurrency}),paymentEventId,
       ]);
-      throw errors.badRequest('TOKENPAY_AMOUNT_MISMATCH','TokenPay callback amount or currency does not match the Shope order');
+      throw errors.badRequest('TOKENPAY_AMOUNT_MISMATCH','TokenPay callback amount or currency does not match the quoted Shope settlement');
     }
 
     await app.db.transaction(async client=>{

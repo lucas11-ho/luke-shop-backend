@@ -68,15 +68,17 @@ export function decryptTokenPayResource(resource,appSecret){
 
 function header(response,name){return response.headers.get(name)||response.headers.get(name.toLowerCase())||'';}
 
-export async function createTokenPayPrepayment({credentials,config,order,attemptRef,notifyUrl,returnUrl,expireSecond,fetchImpl=fetch}){
+export async function createTokenPayPrepayment({credentials,config,order,attemptRef,notifyUrl,returnUrl,expireSecond,settlementAmount=null,fetchImpl=fetch}){
   const appId=String(credentials.app_id||'').trim(),mchId=String(credentials.mch_id||'').trim(),appSecret=String(credentials.app_secret||'');
   if(!appId||!mchId) throw errors.conflict('TOKENPAY_CREDENTIALS_INCOMPLETE','TokenPay App ID and Merchant ID are required');
   appSecretKey(appSecret);
   const chain=String(config.chain||'').trim().toUpperCase(),currency=String(config.currency||'').trim().toUpperCase();
   if(!chain||!currency) throw errors.conflict('TOKENPAY_CONFIG_INCOMPLETE','TokenPay chain and currency are required');
+  const amount=settlementAmount??order.grand_total;
+  if(!Number.isFinite(Number(amount))||Number(amount)<=0) throw errors.conflict('TOKENPAY_AMOUNT_INVALID','TokenPay settlement amount must be greater than zero');
   const payload={
     app_id:appId,mch_id:mchId,description:`Order ${order.order_number}`,out_trade_no:attemptRef,
-    expire_second:expireSecond,amount:Number(order.grand_total),chain,currency,
+    expire_second:expireSecond,amount:Number(amount),chain,currency,
     attach:order.public_id,locale:config.locale==='zh_cn'?'zh_cn':'en',notify_url:notifyUrl,return_url:returnUrl,order_type:'platform_order',
   };
   if(config.to_address) payload.to_address=String(config.to_address).trim();
