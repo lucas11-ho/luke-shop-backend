@@ -44,10 +44,23 @@ export function verifyTokenPayMessage({timestamp,nonce,body,signature,appSecret}
   return safeEqual(expected,signature);
 }
 
-export function tokenPayResponseSignatureDiagnostic({response,timestamp,nonce,body,signature,appSecret}){
-  let expected='';
+export function verifyTokenPayResponse({timestamp,nonce,rawBody,signature,appSecret}){
+  if(!timestamp||!nonce||!signature||typeof rawBody!=='string') return {ok:false,mode:null,canonicalBody:null};
+  if(verifyTokenPayMessage({timestamp,nonce,body:rawBody,signature,appSecret})) return {ok:true,mode:'RAW',canonicalBody:null};
+  let parsed;
+  try{parsed=JSON.parse(rawBody);}catch{return {ok:false,mode:null,canonicalBody:null};}
+  const canonicalBody=JSON.stringify(parsed);
+  if(canonicalBody!==rawBody&&verifyTokenPayMessage({timestamp,nonce,body:canonicalBody,signature,appSecret})){
+    return {ok:true,mode:'CANONICAL_JSON',canonicalBody};
+  }
+  return {ok:false,mode:null,canonicalBody};
+}
+
+export function tokenPayResponseSignatureDiagnostic({response,timestamp,nonce,body,signature,appSecret,canonicalBody=null}){
+  let expected='',canonicalExpected='';
   if(timestamp&&nonce&&signature&&typeof body==='string'){
     expected=tokenPayEncryptSignature(tokenPayResponsePlaintext({timestamp,nonce,body}),appSecret);
+    if(typeof canonicalBody==='string') canonicalExpected=tokenPayEncryptSignature(tokenPayResponsePlaintext({timestamp,nonce,body:canonicalBody}),appSecret);
   }
   const headerNames=[];
   try{for(const [name] of response?.headers?.entries?.()||[])headerNames.push(String(name).toLowerCase());}catch{}
@@ -57,7 +70,11 @@ export function tokenPayResponseSignatureDiagnostic({response,timestamp,nonce,bo
     nonce_present:Boolean(nonce),nonce_length:String(nonce||'').length,
     signature_present:Boolean(signature),signature_length:String(signature||'').length,
     body_bytes:Buffer.byteLength(String(body||''),'utf8'),body_sha256:sha256(body),
-    expected_signature_sha256:expected?sha256(expected):'',received_signature_sha256:signature?sha256(signature):'',
+    canonical_body_bytes:typeof canonicalBody==='string'?Buffer.byteLength(canonicalBody,'utf8'):0,
+    canonical_body_sha256:typeof canonicalBody==='string'?sha256(canonicalBody):'',
+    expected_signature_sha256:expected?sha256(expected):'',
+    canonical_expected_signature_sha256:canonicalExpected?sha256(canonicalExpected):'',
+    received_signature_sha256:signature?sha256(signature):'',
     response_header_names:[...new Set(headerNames)].sort(),
   };
 }
@@ -109,15 +126,16 @@ export async function createTokenPayPrepayment({credentials,config,order,attempt
   });
   const raw=await response.text();
   if(!response.ok) throw errors.unavailable('TOKENPAY_HTTP_ERROR',`TokenPay request failed with HTTP ${response.status}`);
+  let parsed;try{parsed=JSON.parse(raw)}catch{throw errors.unavailable('TOKENPAY_RESPONSE_INVALID','TokenPay returned invalid JSON');}
   const responseTimestamp=header(response,'TTPay-Timestamp'),responseNonce=header(response,'TTPay-Nonce'),responseSignature=header(response,'TTPay-Signature');
   if(responseTimestamp||responseNonce||responseSignature){
-    if(!verifyTokenPayMessage({timestamp:responseTimestamp,nonce:responseNonce,body:raw,signature:responseSignature,appSecret})){
-      const diagnostic=tokenPayResponseSignatureDiagnostic({response,timestamp:responseTimestamp,nonce:responseNonce,body:raw,signature:responseSignature,appSecret});
+    const verification=verifyTokenPayResponse({timestamp:responseTimestamp,nonce:responseNonce,rawBody:raw,signature:responseSignature,appSecret});
+    if(!verification.ok){
+      const diagnostic=tokenPayResponseSignatureDiagnostic({response,timestamp:responseTimestamp,nonce:responseNonce,body:raw,signature:responseSignature,appSecret,canonicalBody:verification.canonicalBody});
       console.warn('TOKENPAY_RESPONSE_SIGNATURE_DIAGNOSTIC',JSON.stringify(diagnostic));
       throw errors.unavailable('TOKENPAY_RESPONSE_SIGNATURE_INVALID','TokenPay response signature verification failed');
     }
   }
-  let parsed;try{parsed=JSON.parse(raw)}catch{throw errors.unavailable('TOKENPAY_RESPONSE_INVALID','TokenPay returned invalid JSON');}
   if(Number(parsed?.code)!==0||!parsed?.data?.prepay_id||!parsed?.data?.payment_url){
     throw errors.unavailable('TOKENPAY_PREPAYMENT_FAILED',String(parsed?.msg||'TokenPay did not create the payment session'));
   }
