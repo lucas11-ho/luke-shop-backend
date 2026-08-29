@@ -1,6 +1,7 @@
 import { errors } from '../../core/errors.js';
 import { publicId, uuid } from '../../core/identifiers.js';
 import { money } from '../orders/service.js';
+import { persistVipOrderSnapshots, resolveVipCheckoutBenefits } from '../loyalty/execution.js';
 
 const PHYSICAL_MODES=new Set(['SHIPPING','LOCAL_DELIVERY','PICKUP']);
 const WORKFLOWS={
@@ -37,15 +38,21 @@ export function assertFulfillmentTransition(orderType,mode,from,to){
 }
 
 export async function resolveDeliverySelection(client,{tenantId,storeId,cartItems,subtotal,deliveryMethodRef=null}){
+ const cartId=cartItems[0]?.cart_id||null;let customerId=null;
+ if(cartId){const owner=await client.query(`SELECT customer_id FROM carts WHERE tenant_id=$1 AND store_id=$2 AND id=$3`,[tenantId,storeId,cartId]);customerId=owner.rows[0]?.customer_id||null;}
  const physicalModes=[...new Set(cartItems.map(r=>r.fulfillment_mode).filter(m=>PHYSICAL_MODES.has(m)))];
- if(physicalModes.length===0)return {method:null,deliveryTotal:0,mode:null};
+ let method=null,mode=null,baseDeliveryTotal=0;
  if(physicalModes.length>1)throw errors.conflict('DELIVERY_MODE_MIXED_UNSUPPORTED','Checkout currently requires one physical delivery mode per order');
- const mode=physicalModes[0],params=[tenantId,storeId,mode];let filter="tenant_id=$1 AND store_id=$2 AND fulfillment_mode=$3 AND status='ACTIVE'";
- if(deliveryMethodRef){params.push(deliveryMethodRef);filter+=` AND (public_id=$4 OR code=$4)`;}
- const found=await client.query(`SELECT * FROM delivery_methods WHERE ${filter} ORDER BY sort_order,created_at LIMIT 1`,params);
- if(!found.rowCount)throw errors.notFound('DELIVERY_METHOD_NOT_FOUND','Active delivery method not found for selected fulfillment mode');
- const method=found.rows[0];if(Number(subtotal)<Number(method.min_order))throw errors.conflict('DELIVERY_MIN_ORDER','Order subtotal does not meet delivery method minimum');
- const fee=method.free_over!=null&&Number(subtotal)>=Number(method.free_over)?0:Number(method.flat_fee);return {method,deliveryTotal:money(fee),mode};
+ if(physicalModes.length===1){
+   mode=physicalModes[0];const params=[tenantId,storeId,mode];let filter="tenant_id=$1 AND store_id=$2 AND fulfillment_mode=$3 AND status='ACTIVE'";
+   if(deliveryMethodRef){params.push(deliveryMethodRef);filter+=` AND (public_id=$4 OR code=$4)`;}
+   const found=await client.query(`SELECT * FROM delivery_methods WHERE ${filter} ORDER BY sort_order,created_at LIMIT 1`,params);
+   if(!found.rowCount)throw errors.notFound('DELIVERY_METHOD_NOT_FOUND','Active delivery method not found for selected fulfillment mode');
+   method=found.rows[0];if(Number(subtotal)<Number(method.min_order))throw errors.conflict('DELIVERY_MIN_ORDER','Order subtotal does not meet delivery method minimum');
+   baseDeliveryTotal=money(method.free_over!=null&&Number(subtotal)>=Number(method.free_over)?0:Number(method.flat_fee));
+ }
+ const vip=customerId?await resolveVipCheckoutBenefits(client,{tenantId,storeId,customerId,subtotal,deliveryMethod:method,deliveryAmount:baseDeliveryTotal}):{enabled:false,deliveryDiscount:0,snapshots:[]};
+ return {method,baseDeliveryTotal,deliveryTotal:money(Math.max(0,baseDeliveryTotal-Number(vip.deliveryDiscount||0))),mode,vip};
 }
 
 export async function createOrderFulfillments(client,{tenantId,storeId,orderId,cartItems,deliverySelection}){
@@ -60,6 +67,7 @@ export async function createOrderFulfillments(client,{tenantId,storeId,orderId,c
    await client.query(`UPDATE order_items SET fulfillment_id=$1 WHERE tenant_id=$2 AND store_id=$3 AND order_id=$4 AND product_type_snapshot=$5 AND fulfillment_mode=$6 AND fulfillment_id IS NULL`,[row.rows[0].id,tenantId,storeId,orderId,group.productType,group.mode]);
    created.push(row.rows[0]);
  }
+ await persistVipOrderSnapshots(client,{tenantId,storeId,orderId,deliverySelection});
  return created;
 }
 
