@@ -16,6 +16,8 @@ function safeEqual(a,b){
   return left.length===right.length&&crypto.timingSafeEqual(left,right);
 }
 
+function sha256(value){return crypto.createHash('sha256').update(String(value??''),'utf8').digest('hex');}
+
 export function tokenPayNonce(){return crypto.randomBytes(16).toString('hex');}
 
 export function tokenPayRequestPlaintext({path,timestamp,nonce,body}){
@@ -40,6 +42,24 @@ export function verifyTokenPayMessage({timestamp,nonce,body,signature,appSecret}
   if(!timestamp||!nonce||!signature||typeof body!=='string') return false;
   const expected=tokenPayEncryptSignature(tokenPayResponsePlaintext({timestamp,nonce,body}),appSecret);
   return safeEqual(expected,signature);
+}
+
+export function tokenPayResponseSignatureDiagnostic({response,timestamp,nonce,body,signature,appSecret}){
+  let expected='';
+  if(timestamp&&nonce&&signature&&typeof body==='string'){
+    expected=tokenPayEncryptSignature(tokenPayResponsePlaintext({timestamp,nonce,body}),appSecret);
+  }
+  const headerNames=[];
+  try{for(const [name] of response?.headers?.entries?.()||[])headerNames.push(String(name).toLowerCase());}catch{}
+  return {
+    status:Number(response?.status||0),
+    timestamp_present:Boolean(timestamp),timestamp_length:String(timestamp||'').length,
+    nonce_present:Boolean(nonce),nonce_length:String(nonce||'').length,
+    signature_present:Boolean(signature),signature_length:String(signature||'').length,
+    body_bytes:Buffer.byteLength(String(body||''),'utf8'),body_sha256:sha256(body),
+    expected_signature_sha256:expected?sha256(expected):'',received_signature_sha256:signature?sha256(signature):'',
+    response_header_names:[...new Set(headerNames)].sort(),
+  };
 }
 
 export function buildTokenPayAuthorization({appId,mchId,timestamp,nonce,signature}){
@@ -92,6 +112,8 @@ export async function createTokenPayPrepayment({credentials,config,order,attempt
   const responseTimestamp=header(response,'TTPay-Timestamp'),responseNonce=header(response,'TTPay-Nonce'),responseSignature=header(response,'TTPay-Signature');
   if(responseTimestamp||responseNonce||responseSignature){
     if(!verifyTokenPayMessage({timestamp:responseTimestamp,nonce:responseNonce,body:raw,signature:responseSignature,appSecret})){
+      const diagnostic=tokenPayResponseSignatureDiagnostic({response,timestamp:responseTimestamp,nonce:responseNonce,body:raw,signature:responseSignature,appSecret});
+      console.warn('TOKENPAY_RESPONSE_SIGNATURE_DIAGNOSTIC',JSON.stringify(diagnostic));
       throw errors.unavailable('TOKENPAY_RESPONSE_SIGNATURE_INVALID','TokenPay response signature verification failed');
     }
   }
