@@ -18,8 +18,8 @@ export function vipPeriodWindow(program,now=new Date()){
 
 export async function getVipProgram(db,tenantId,storeId){
   const result=await db.query(`SELECT vp.public_id AS id,vp.id AS internal_id,vp.enabled,vp.evaluation_period,vp.custom_period_days,
-      vp.evaluation_frequency,vp.downgrade_policy,vp.grace_days,vp.created_at,vp.updated_at,s.currency
-    FROM vip_programs vp JOIN stores s ON s.id=vp.store_id AND s.tenant_id=vp.tenant_id
+      vp.evaluation_frequency,vp.downgrade_policy,vp.grace_days,vp.created_at,vp.updated_at,ts.currency
+    FROM vip_programs vp JOIN tenant_settings ts ON ts.tenant_id=vp.tenant_id
     WHERE vp.tenant_id=$1 AND vp.store_id=$2`,[tenantId,storeId]);
   return result.rows[0]||null;
 }

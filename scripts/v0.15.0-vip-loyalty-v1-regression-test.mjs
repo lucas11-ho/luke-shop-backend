@@ -21,7 +21,7 @@ assert.equal(validateVipLevel({qualification_mode:'SPEND',spend_threshold:100}).
 assert.throws(()=>validateVipLevel({qualification_mode:'AND',spend_threshold:100}),/Spend and order thresholds/);
 
 assert.deepEqual(normalizeBenefitConfig('FREE_DELIVERY',{min_order:20,max_subsidy:5,usage_limit:3,delivery_method_ids:['a','a','b']}),{min_order:20,max_subsidy:5,usage_limit:3,delivery_method_ids:['a','b']});
-assert.deepEqual(normalizeBenefitConfig('CASHBACK',{value_type:'PERCENTAGE',value:3,min_order:10,cap:20,expires_days:30}),{value_type:'PERCENTAGE',value:3,min_order:10,cap:20,expires_days:30});
+assert.deepEqual(normalizeBenefitConfig('CASHBACK',{value_type:'PERCENTAGE',value:3,min_order:10,cap:20,expires_days:30}),{min_order:10,value_type:'PERCENTAGE',value:3,cap:20,expires_days:30});
 assert.throws(()=>normalizeBenefitConfig('CASHBACK',{value_type:'PERCENTAGE',value:120}),/Cashback value is invalid/);
 
 const migration=fs.readFileSync(new URL('../migrations/019_vip_loyalty_foundation.sql',import.meta.url),'utf8');
@@ -36,8 +36,11 @@ for(const route of ['/v1/merchant/vip/program','/v1/merchant/vip/overview','/v1/
 const service=fs.readFileSync(new URL('../src/modules/loyalty/service.js',import.meta.url),'utf8');
 assert.match(service,/refunded_amount/);
 assert.match(service,/to_status='COMPLETED'/);
+assert.match(service,/JOIN tenant_settings ts ON ts\.tenant_id=vp\.tenant_id/);
+assert.match(service,/ts\.currency/);
+assert.doesNotMatch(service,/\bs\.currency\b/);
 assert.doesNotMatch(service,/cashback_balance|synthetic|estimated_value/i);
 const customer=fs.readFileSync(new URL('../src/modules/loyalty/customer-routes.js',import.meta.url),'utf8');
 assert.ok(customer.includes('/v1/customer/vip'));
 
-console.log('PASS VIP program periods, tier qualification, bounded benefits, legacy-role RBAC backfill, refund-aware completed-order metrics, merchant APIs, and customer VIP contract');
+console.log('PASS VIP program periods, tier qualification, bounded benefits, legacy-role RBAC backfill, tenant-currency lookup, refund-aware completed-order metrics, merchant APIs, and customer VIP contract');
