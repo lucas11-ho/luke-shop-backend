@@ -5,7 +5,7 @@ import { publicId, uuid } from '../../core/identifiers.js';
 function encryptionKey(app) {
   const secret = String(app.config.paymentCredentialEncryptionKey || '');
   if (secret.length < 32) {
-    throw errors.serviceUnavailable('PAYMENT_CREDENTIALS_UNAVAILABLE','Payment credential encryption is not configured');
+    throw errors.unavailable('PAYMENT_CREDENTIALS_UNAVAILABLE','Payment credential encryption is not configured');
   }
   return crypto.createHash('sha256').update(secret,'utf8').digest();
 }
@@ -29,7 +29,7 @@ function decryptJson(app, row) {
     return JSON.parse(plain);
   } catch (error) {
     if (error?.code === 'PAYMENT_CREDENTIALS_UNAVAILABLE') throw error;
-    throw errors.serviceUnavailable('PAYMENT_CREDENTIALS_DECRYPT_FAILED','Payment provider credentials could not be decrypted');
+    throw errors.unavailable('PAYMENT_CREDENTIALS_DECRYPT_FAILED','Payment provider credentials could not be decrypted');
   }
 }
 
