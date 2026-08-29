@@ -21,6 +21,12 @@ services:
         generateValue: true
       - key: CS_SERVICE_SIGNING_SECRET
         generateValue: true
+      - key: PAYMENT_CREDENTIAL_ENCRYPTION_KEY
+        sync: false
+      - key: PAYMENT_PUBLIC_BASE_URL
+        sync: false
+      - key: CUSTOMER_WEB_BASE_URL
+        sync: false
       - key: CORS_ORIGINS
         sync: false
       - key: ASSET_STORAGE_DRIVER
