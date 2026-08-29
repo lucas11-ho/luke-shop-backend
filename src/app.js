@@ -20,6 +20,9 @@ import { merchantInventoryRoutes } from './modules/inventory/merchant-routes.js'
 import { customerOrderRoutes } from './modules/orders/customer-routes.js';
 import { merchantOrderRoutes } from './modules/orders/merchant-routes.js';
 import { merchantPaymentRoutes } from './modules/payments/merchant-routes.js';
+import { merchantPaymentProviderRoutes } from './modules/payments/provider-routes.js';
+import { customerPaymentGatewayRoutes } from './modules/payments/gateway-routes.js';
+import { paymentWebhookRoutes } from './modules/payments/webhook-routes.js';
 import { merchantDeliveryRoutes } from './modules/delivery/merchant-routes.js';
 import { merchantNotificationRoutes } from './modules/notifications/merchant-routes.js';
 import { customerDeliveryLocationRoutes } from './modules/delivery/customer-location-routes.js';
@@ -46,6 +49,16 @@ export async function buildApp(config) {
   });
   app.decorate('config', config);
   app.decorate('db', createDatabase(config));
+  app.decorateRequest('rawBody', null);
+
+  // TokenPay signs the exact callback response body bytes. Preserve the original JSON text while
+  // keeping the same parsed request.body behavior for every existing JSON route.
+  app.removeContentTypeParser('application/json');
+  app.addContentTypeParser('application/json',{parseAs:'string'},(request,body,done)=>{
+    request.rawBody=body;
+    try { done(null, JSON.parse(body)); }
+    catch (error) { error.statusCode=400; error.code='FST_ERR_CTP_INVALID_JSON_BODY'; done(error); }
+  });
 
   await app.register(helmet, { global: true });
   await app.register(rateLimit, { global: true, max: config.rateLimitMax, timeWindow: '1 minute' });
@@ -107,6 +120,7 @@ export async function buildApp(config) {
   } }));
 
   await app.register(healthRoutes);
+  await app.register(paymentWebhookRoutes);
   await app.register(storefrontRoutes);
   await app.register(publicAssetRoutes);
   await app.register(storefrontCatalogRoutes);
@@ -122,11 +136,13 @@ export async function buildApp(config) {
   await app.register(customerOrderRoutes);
   await app.register(merchantOrderRoutes);
   await app.register(merchantPaymentRoutes);
+  await app.register(merchantPaymentProviderRoutes);
   await app.register(merchantDeliveryRoutes);
   await app.register(merchantNotificationRoutes);
   await app.register(customerDeliveryLocationRoutes);
   await app.register(merchantPromotionRoutes);
   await app.register(customerCommerceRoutes);
+  await app.register(customerPaymentGatewayRoutes);
   await app.register(customerSupportContextRoutes);
   await app.register(customerServiceMerchantRoutes);
   await app.register(customerServiceRoutes);
