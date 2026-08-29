@@ -39,7 +39,10 @@ export async function resolveVipCheckoutBenefits(client,{tenantId,storeId,custom
       const methods=Array.isArray(config.delivery_method_ids)?config.delivery_method_ids.map(String):[];
       if(methods.length&&(!deliveryMethod||!methods.includes(String(deliveryMethod.public_id)))){eligible=false;reason='Delivery method is not eligible';}
       if(eligible&&Number(config.usage_limit)>0){
-        const used=await client.query(`SELECT count(*)::int AS count FROM order_vip_benefits WHERE tenant_id=$1 AND store_id=$2 AND customer_id=$3 AND benefit_id=$4 AND status='APPLIED'`,[tenantId,storeId,customerId,benefit.internal_id]);
+        const used=await client.query(`SELECT count(*)::int AS count FROM order_vip_benefits ovb
+          JOIN orders o ON o.tenant_id=ovb.tenant_id AND o.store_id=ovb.store_id AND o.id=ovb.order_id
+          WHERE ovb.tenant_id=$1 AND ovb.store_id=$2 AND ovb.customer_id=$3 AND ovb.benefit_id=$4 AND ovb.status='APPLIED'
+            AND o.status NOT IN ('CANCELLED','PAYMENT_FAILED','REFUNDED')`,[tenantId,storeId,customerId,benefit.internal_id]);
         if(Number(used.rows[0]?.count||0)>=Number(config.usage_limit)){eligible=false;reason='Benefit usage limit reached';}
       }
       if(eligible){const cap=config.max_subsidy===null||config.max_subsidy===undefined||config.max_subsidy===''?Number(deliveryAmount):Number(config.max_subsidy);const amount=money(Math.min(Number(deliveryAmount||0),Math.max(0,cap)));free.push({benefit,config,amount});}
@@ -69,12 +72,13 @@ export async function persistVipOrderSnapshots(client,{tenantId,storeId,orderId,
 
 export async function expireDueVipRewards(client,{tenantId,storeId,customerId=null}){
   const values=[tenantId,storeId];let customer='';if(customerId){values.push(customerId);customer=` AND e.customer_id=$${values.length}`;}
-  const due=await client.query(`SELECT e.* FROM vip_reward_ledger e WHERE e.tenant_id=$1 AND e.store_id=$2${customer} AND e.entry_type='EARN' AND e.expires_at IS NOT NULL AND e.expires_at<=now()
-    AND NOT EXISTS(SELECT 1 FROM vip_reward_ledger x WHERE x.tenant_id=e.tenant_id AND x.store_id=e.store_id AND x.related_entry_id=e.id AND x.entry_type='EXPIRE') FOR UPDATE`,values);
+  const due=await client.query(`SELECT e.* FROM vip_reward_ledger e WHERE e.tenant_id=$1 AND e.store_id=$2${customer}
+    AND (e.entry_type='EARN' OR (e.entry_type='ADMIN_ADJUSTMENT' AND e.amount>0)) AND e.expires_at IS NOT NULL AND e.expires_at<=now()
+    AND NOT EXISTS(SELECT 1 FROM vip_reward_ledger x WHERE x.tenant_id=e.tenant_id AND x.store_id=e.store_id AND x.related_entry_id=e.id AND x.entry_type IN ('EXPIRE','REFUND_CLAWBACK','REVERSAL')) FOR UPDATE OF e`,values);
   let expired=0;
   for(const entry of due.rows){
     const result=await client.query(`INSERT INTO vip_reward_ledger(id,public_id,tenant_id,store_id,customer_id,order_id,benefit_id,order_vip_benefit_id,related_entry_id,entry_type,amount,currency,source_key,description,metadata)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'EXPIRE',$10,$11,$12,$13,$14::jsonb) ON CONFLICT (tenant_id,store_id,source_key) DO NOTHING RETURNING id`,[uuid(),publicId('vrl'),tenantId,storeId,entry.customer_id,entry.order_id,entry.benefit_id,entry.order_vip_benefit_id,entry.id,-Math.abs(Number(entry.amount)),entry.currency,`EXPIRE:${entry.public_id}`,'VIP cashback expired',JSON.stringify({earned_entry_id:entry.public_id})]);
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'EXPIRE',$10,$11,$12,$13,$14::jsonb) ON CONFLICT (tenant_id,store_id,source_key) DO NOTHING RETURNING id`,[uuid(),publicId('vrl'),tenantId,storeId,entry.customer_id,entry.order_id,entry.benefit_id,entry.order_vip_benefit_id,entry.id,-Math.abs(Number(entry.amount)),entry.currency,`EXPIRE:${entry.public_id}`,'VIP reward expired',JSON.stringify({source_entry_id:entry.public_id})]);
     expired+=result.rowCount;
   }
   return expired;
@@ -122,7 +126,8 @@ export async function processVipOrderCompletion(client,{tenantId,storeId,order})
 
 export async function processVipOrderRefund(client,{tenantId,storeId,order,refundRef}){
   await expireDueVipRewards(client,{tenantId,storeId,customerId:order.customer_id});
-  const earns=await client.query(`SELECT * FROM vip_reward_ledger WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3 AND entry_type='EARN' FOR UPDATE`,[tenantId,storeId,order.id]);let clawed=0;
+  const earns=await client.query(`SELECT e.* FROM vip_reward_ledger e WHERE e.tenant_id=$1 AND e.store_id=$2 AND e.order_id=$3 AND e.entry_type='EARN'
+    AND NOT EXISTS(SELECT 1 FROM vip_reward_ledger x WHERE x.tenant_id=e.tenant_id AND x.store_id=e.store_id AND x.related_entry_id=e.id AND x.entry_type IN ('EXPIRE','REFUND_CLAWBACK','REVERSAL')) FOR UPDATE OF e`,[tenantId,storeId,order.id]);let clawed=0;
   for(const entry of earns.rows){
     const sourceKey=`REFUND:${refundRef}:EARN:${entry.public_id}`;
     const inserted=await client.query(`INSERT INTO vip_reward_ledger(id,public_id,tenant_id,store_id,customer_id,order_id,benefit_id,order_vip_benefit_id,related_entry_id,entry_type,amount,currency,source_key,description,metadata)
