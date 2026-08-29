@@ -45,22 +45,27 @@ export function verifyTokenPayMessage({timestamp,nonce,body,signature,appSecret}
 }
 
 export function verifyTokenPayResponse({timestamp,nonce,rawBody,signature,appSecret}){
-  if(!timestamp||!nonce||!signature||typeof rawBody!=='string') return {ok:false,mode:null,canonicalBody:null};
-  if(verifyTokenPayMessage({timestamp,nonce,body:rawBody,signature,appSecret})) return {ok:true,mode:'RAW',canonicalBody:null};
+  if(!timestamp||!nonce||!signature||typeof rawBody!=='string') return {ok:false,mode:null,canonicalBody:null,dataBody:null};
+  if(verifyTokenPayMessage({timestamp,nonce,body:rawBody,signature,appSecret})) return {ok:true,mode:'RAW',canonicalBody:null,dataBody:null};
   let parsed;
-  try{parsed=JSON.parse(rawBody);}catch{return {ok:false,mode:null,canonicalBody:null};}
+  try{parsed=JSON.parse(rawBody);}catch{return {ok:false,mode:null,canonicalBody:null,dataBody:null};}
   const canonicalBody=JSON.stringify(parsed);
   if(canonicalBody!==rawBody&&verifyTokenPayMessage({timestamp,nonce,body:canonicalBody,signature,appSecret})){
-    return {ok:true,mode:'CANONICAL_JSON',canonicalBody};
+    return {ok:true,mode:'CANONICAL_JSON',canonicalBody,dataBody:null};
   }
-  return {ok:false,mode:null,canonicalBody};
+  const dataBody=parsed&&typeof parsed==='object'&&parsed.data!==undefined?JSON.stringify(parsed.data):null;
+  if(typeof dataBody==='string'&&verifyTokenPayMessage({timestamp,nonce,body:dataBody,signature,appSecret})){
+    return {ok:true,mode:'DATA_JSON',canonicalBody,dataBody};
+  }
+  return {ok:false,mode:null,canonicalBody,dataBody};
 }
 
-export function tokenPayResponseSignatureDiagnostic({response,timestamp,nonce,body,signature,appSecret,canonicalBody=null}){
-  let expected='',canonicalExpected='';
+export function tokenPayResponseSignatureDiagnostic({response,timestamp,nonce,body,signature,appSecret,canonicalBody=null,dataBody=null}){
+  let expected='',canonicalExpected='',dataExpected='';
   if(timestamp&&nonce&&signature&&typeof body==='string'){
     expected=tokenPayEncryptSignature(tokenPayResponsePlaintext({timestamp,nonce,body}),appSecret);
     if(typeof canonicalBody==='string') canonicalExpected=tokenPayEncryptSignature(tokenPayResponsePlaintext({timestamp,nonce,body:canonicalBody}),appSecret);
+    if(typeof dataBody==='string') dataExpected=tokenPayEncryptSignature(tokenPayResponsePlaintext({timestamp,nonce,body:dataBody}),appSecret);
   }
   const headerNames=[];
   try{for(const [name] of response?.headers?.entries?.()||[])headerNames.push(String(name).toLowerCase());}catch{}
@@ -72,8 +77,11 @@ export function tokenPayResponseSignatureDiagnostic({response,timestamp,nonce,bo
     body_bytes:Buffer.byteLength(String(body||''),'utf8'),body_sha256:sha256(body),
     canonical_body_bytes:typeof canonicalBody==='string'?Buffer.byteLength(canonicalBody,'utf8'):0,
     canonical_body_sha256:typeof canonicalBody==='string'?sha256(canonicalBody):'',
+    data_body_bytes:typeof dataBody==='string'?Buffer.byteLength(dataBody,'utf8'):0,
+    data_body_sha256:typeof dataBody==='string'?sha256(dataBody):'',
     expected_signature_sha256:expected?sha256(expected):'',
     canonical_expected_signature_sha256:canonicalExpected?sha256(canonicalExpected):'',
+    data_expected_signature_sha256:dataExpected?sha256(dataExpected):'',
     received_signature_sha256:signature?sha256(signature):'',
     response_header_names:[...new Set(headerNames)].sort(),
   };
@@ -131,7 +139,7 @@ export async function createTokenPayPrepayment({credentials,config,order,attempt
   if(responseTimestamp||responseNonce||responseSignature){
     const verification=verifyTokenPayResponse({timestamp:responseTimestamp,nonce:responseNonce,rawBody:raw,signature:responseSignature,appSecret});
     if(!verification.ok){
-      const diagnostic=tokenPayResponseSignatureDiagnostic({response,timestamp:responseTimestamp,nonce:responseNonce,body:raw,signature:responseSignature,appSecret,canonicalBody:verification.canonicalBody});
+      const diagnostic=tokenPayResponseSignatureDiagnostic({response,timestamp:responseTimestamp,nonce:responseNonce,body:raw,signature:responseSignature,appSecret,canonicalBody:verification.canonicalBody,dataBody:verification.dataBody});
       console.warn('TOKENPAY_RESPONSE_SIGNATURE_DIAGNOSTIC',JSON.stringify(diagnostic));
       throw errors.unavailable('TOKENPAY_RESPONSE_SIGNATURE_INVALID','TokenPay response signature verification failed');
     }
