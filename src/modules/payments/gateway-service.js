@@ -1,6 +1,7 @@
 import { errors } from '../../core/errors.js';
 import { publicId, uuid } from '../../core/identifiers.js';
 import { loadProviderCredentials } from './provider-credentials.js';
+import { resolveSettlementQuote } from './settlement-quote.js';
 import { createTokenPayPrepayment, TOKENPAY_PROVIDER_KEY } from './providers/tokenpay.js';
 
 const upper=value=>String(value||'').trim().toUpperCase();
@@ -84,32 +85,33 @@ export async function createCustomerPaymentSession(app,{tenantId,customerId,orde
   if(staged.nonExternal) return {action:'NONE',status:staged.order.payment_status_live||'PENDING'};
   const {order,attempt}=staged;
   if(staged.existing&&attempt?.response_summary?.payment_url){
-    return {action:'REDIRECT',status:'PROCESSING',url:attempt.response_summary.payment_url,provider_reference:attempt.provider_reference||order.provider_reference||null,expires_at:attempt.response_summary.expires_at||null};
+    return {action:'REDIRECT',status:'PROCESSING',url:attempt.response_summary.payment_url,provider_reference:attempt.provider_reference||order.provider_reference||null,expires_at:attempt.response_summary.expires_at||null,settlement_quote:attempt.response_summary.settlement_quote||attempt.request_summary?.settlement_quote||null};
   }
   if(staged.existing&&attempt?.status==='SUCCEEDED') return {action:'NONE',status:'PAID'};
 
   try{
     const providerConfig=order.public_config&&typeof order.public_config==='object'?order.public_config:{};
-    const configuredCurrency=upper(providerConfig.currency),orderCurrency=upper(order.currency);
-    if(!configuredCurrency||configuredCurrency!==orderCurrency){
-      throw errors.conflict('PAYMENT_CURRENCY_UNSUPPORTED','TokenPay currency must exactly match the order currency; Shope does not perform implicit FX conversion');
-    }
+    const configuredCurrency=upper(providerConfig.currency);
+    if(!configuredCurrency) throw errors.conflict('PAYMENT_SETTLEMENT_CONFIG_INVALID','TokenPay settlement currency is not configured');
     const credentials=await loadProviderCredentials(app,app.db,{tenantId,storeId:order.store_id,paymentMethodId:order.payment_method_id,providerKey:TOKENPAY_PROVIDER_KEY});
+    const settlementQuote=resolveSettlementQuote({order,providerCurrency:configuredCurrency,settlementPolicy:credentials.settlement});
+    await app.db.query(`UPDATE payment_attempts SET request_summary=request_summary||$1::jsonb WHERE id=$2`,[JSON.stringify({settlement_quote:settlementQuote}),attempt.id]);
     const urls=paymentUrls(app,{public_id:order.method_public_id},order);
     const remainingSeconds=order.reservation_expires_at?Math.floor((new Date(order.reservation_expires_at).getTime()-Date.now())/1000):1800;
     if(remainingSeconds<60) throw errors.conflict('PAYMENT_RESERVATION_EXPIRED','Inventory reservation is too close to expiry to create a payment session');
     const expireSecond=Math.min(clamp(providerConfig.expire_second,60,86400,600),remainingSeconds);
-    const result=await createTokenPayPrepayment({credentials,config:providerConfig,order,attemptRef:attempt.public_id,notifyUrl:urls.notifyUrl,returnUrl:urls.returnUrl,expireSecond});
+    const result=await createTokenPayPrepayment({credentials,config:providerConfig,order,attemptRef:attempt.public_id,notifyUrl:urls.notifyUrl,returnUrl:urls.returnUrl,expireSecond,settlementAmount:settlementQuote.target_amount});
     const expiresAt=new Date(Date.now()+result.expires_in*1000).toISOString();
+    const settlementSnapshot={...settlementQuote,expires_at:expiresAt};
     await app.db.transaction(async client=>{
       await client.query(`UPDATE payment_attempts SET status='PROCESSING',provider_reference=$1,response_summary=$2::jsonb WHERE id=$3`,[
-        result.prepay_id,JSON.stringify({provider:'TOKENPAY',payment_url:result.payment_url,request_id:result.request_id,expires_at:expiresAt}),attempt.id,
+        result.prepay_id,JSON.stringify({provider:'TOKENPAY',payment_url:result.payment_url,request_id:result.request_id,expires_at:expiresAt,settlement_quote:settlementSnapshot}),attempt.id,
       ]);
       await client.query(`UPDATE order_payments SET status='PROCESSING',provider_reference=$1,metadata=metadata||$2::jsonb,updated_at=now() WHERE id=$3`,[
-        result.prepay_id,JSON.stringify({gateway:'TOKENPAY',session_expires_at:expiresAt}),order.payment_db_id,
+        result.prepay_id,JSON.stringify({gateway:'TOKENPAY',session_expires_at:expiresAt,settlement_quote:settlementSnapshot}),order.payment_db_id,
       ]);
     });
-    return {action:'REDIRECT',status:'PROCESSING',url:result.payment_url,provider_reference:result.prepay_id,expires_at:expiresAt};
+    return {action:'REDIRECT',status:'PROCESSING',url:result.payment_url,provider_reference:result.prepay_id,expires_at:expiresAt,settlement_quote:settlementSnapshot};
   }catch(error){
     await failStagedSession(app,order,attempt,error);
     throw error;
