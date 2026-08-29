@@ -125,8 +125,8 @@ export function verifyDigitalContentToken(secret,token,{entitlementId,assetId}){
 }
 
 export async function resolveSignedDigitalContent(db,{entitlementRef,assetRef,mode}){
-  const found=await db.query(`SELECT e.public_id AS entitlement_id,e.status,e.access_mode,o.payment_status,o.status AS order_status,
-      a.*,ea.asset_id AS entitled_asset_id
+  const found=await db.query(`SELECT e.public_id AS entitlement_id,e.status AS entitlement_status,e.access_mode,o.payment_status,o.status AS order_status,
+      a.id,a.public_id,a.tenant_id,a.store_id,a.storage_provider,a.storage_key,a.visibility,a.media_type,a.mime_type,a.original_filename,a.file_size,a.sha256,a.url,a.status AS asset_status
     FROM order_digital_entitlements e
     JOIN orders o ON o.id=e.order_id AND o.tenant_id=e.tenant_id AND o.store_id=e.store_id
     JOIN order_digital_entitlement_assets ea ON ea.tenant_id=e.tenant_id AND ea.store_id=e.store_id AND ea.entitlement_id=e.id
@@ -134,7 +134,7 @@ export async function resolveSignedDigitalContent(db,{entitlementRef,assetRef,mo
     WHERE e.public_id=$1 AND a.public_id=$2 AND a.visibility='PRIVATE' AND a.status='ACTIVE' LIMIT 1`,[entitlementRef,assetRef]);
   if(!found.rowCount)throw errors.notFound('DIGITAL_CONTENT_NOT_FOUND','Digital content not found');
   const row=found.rows[0];
-  if(row.status!=='ACTIVE'||row.payment_status!=='PAID'||revokedOrderStatuses.has(row.order_status))throw errors.forbidden('DIGITAL_ACCESS_NOT_ACTIVE','Digital access is no longer active');
+  if(row.entitlement_status!=='ACTIVE'||row.asset_status!=='ACTIVE'||row.payment_status!=='PAID'||revokedOrderStatuses.has(row.order_status))throw errors.forbidden('DIGITAL_ACCESS_NOT_ACTIVE','Digital access is no longer active');
   if(mode==='VIEW'&&!canView(row.access_mode))throw errors.forbidden('DIGITAL_VIEW_NOT_ALLOWED','Gallery access is disabled');
   if(mode==='DOWNLOAD'&&!canDownload(row.access_mode))throw errors.forbidden('DIGITAL_DOWNLOAD_NOT_ALLOWED','Downloads are disabled');
   return row;
