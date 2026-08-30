@@ -25,6 +25,8 @@ import { customerPaymentGatewayRoutes } from './modules/payments/gateway-routes.
 import { paymentWebhookRoutes } from './modules/payments/webhook-routes.js';
 import { merchantDeliveryRoutes } from './modules/delivery/merchant-routes.js';
 import { deliveryOperationsRoutes } from './modules/delivery/operations-routes.js';
+import { driverDeliveryRoutes } from './modules/delivery/driver-routes.js';
+import { merchantCodRoutes } from './modules/delivery/cod-merchant-routes.js';
 import { merchantNotificationRoutes } from './modules/notifications/merchant-routes.js';
 import { customerDeliveryLocationRoutes } from './modules/delivery/customer-location-routes.js';
 import { merchantPromotionRoutes } from './modules/promotions/merchant-routes.js';
@@ -148,6 +150,8 @@ export async function buildApp(config) {
   await app.register(merchantPaymentProviderRoutes);
   await app.register(merchantDeliveryRoutes);
   await app.register(deliveryOperationsRoutes);
+  await app.register(driverDeliveryRoutes);
+  await app.register(merchantCodRoutes);
   await app.register(merchantNotificationRoutes);
   await app.register(customerDeliveryLocationRoutes);
   await app.register(merchantPromotionRoutes);
