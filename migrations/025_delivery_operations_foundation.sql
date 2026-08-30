@@ -84,7 +84,7 @@ CREATE TABLE delivery_drivers (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(tenant_id,store_id,id),
   FOREIGN KEY (tenant_id,store_id) REFERENCES stores(tenant_id,id) ON DELETE CASCADE,
-  FOREIGN KEY (tenant_id,merchant_user_id) REFERENCES merchant_users(tenant_id,id) ON DELETE SET NULL
+  FOREIGN KEY (tenant_id,merchant_user_id) REFERENCES merchant_users(tenant_id,id) ON DELETE RESTRICT
 );
 CREATE UNIQUE INDEX delivery_drivers_merchant_user_uq
   ON delivery_drivers(tenant_id,store_id,merchant_user_id)
@@ -141,8 +141,8 @@ CREATE TABLE delivery_dispatch_events (
   request_id text,
   created_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (tenant_id,store_id,dispatch_id) REFERENCES delivery_dispatches(tenant_id,store_id,id) ON DELETE CASCADE,
-  FOREIGN KEY (tenant_id,store_id,from_driver_id) REFERENCES delivery_drivers(tenant_id,store_id,id) ON DELETE SET NULL,
-  FOREIGN KEY (tenant_id,store_id,to_driver_id) REFERENCES delivery_drivers(tenant_id,store_id,id) ON DELETE SET NULL
+  FOREIGN KEY (tenant_id,store_id,from_driver_id) REFERENCES delivery_drivers(tenant_id,store_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id,store_id,to_driver_id) REFERENCES delivery_drivers(tenant_id,store_id,id) ON DELETE RESTRICT
 );
 CREATE INDEX delivery_dispatch_events_dispatch_idx
   ON delivery_dispatch_events(tenant_id,store_id,dispatch_id,created_at,id);
