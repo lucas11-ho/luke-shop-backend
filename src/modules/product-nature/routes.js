@@ -132,6 +132,7 @@ export async function productNatureRoutes(app) {
       }
       if (['DIGITAL_IMAGE','DIGITAL_VIDEO','SERVICE'].includes(targetType)) {
         await client.query('UPDATE inventory_items SET track_inventory=false,updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND product_id=$3', [request.auth.tenantId, store.id, current.id]);
+        await client.query('UPDATE product_variants SET track_inventory=false,updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND product_id=$3', [request.auth.tenantId, store.id, current.id]);
       }
 
       const repairedCartItems = await repairProductInActiveCarts(client, {
