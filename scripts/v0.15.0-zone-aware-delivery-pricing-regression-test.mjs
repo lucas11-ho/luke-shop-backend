@@ -35,8 +35,9 @@ assert.ok(merchant.includes("['SHIPPING','LOCAL_DELIVERY'].includes(method.fulfi
 assert.ok(customer.includes("/v1/customer/delivery/quote"),'server-authoritative customer delivery quote endpoint missing');
 assert.ok(customer.includes('pricing_mode,zone_no_match_policy'),'storefront delivery-method contract must disclose pricing mode');
 assert.ok(checkout.includes('shippingAddress:request.body.shipping_address||null'),'checkout must resolve pricing from its own submitted address');
-assert.ok(delivery.includes("pricing_source:'ZONE_RATE'")&&delivery.includes("pricing_source:source"));
-assert.ok(delivery.includes("BASELINE_FALLBACK"));
+assert.ok(delivery.includes("pricing_source:source"),'frozen snapshot must record the resolver-selected pricing source');
+assert.ok(delivery.includes("source:'ZONE_RATE'"),'matched zone pricing must explicitly mark ZONE_RATE as its snapshot source');
+assert.ok(delivery.includes("source:'BASELINE_FALLBACK'"),'explicit unmatched fallback must be distinguishable from ordinary baseline pricing');
 assert.ok(delivery.includes("DELIVERY_ZONE_UNAVAILABLE"));
 assert.ok(delivery.includes('delivery_zone_id,delivery_zone_rate_id,delivery_pricing_snapshot'),'fulfillment insert must freeze zone/rate and pricing snapshot');
 assert.ok(delivery.indexOf('zoneAwareAmount(client')<delivery.indexOf('resolveVipCheckoutBenefits(client'),'VIP free-delivery must apply after the server resolves baseline/zone delivery fee');
