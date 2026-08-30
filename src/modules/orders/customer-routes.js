@@ -121,7 +121,7 @@ export async function customerOrderRoutes(app) {
         if(money(current.lineTotal)!==money(item.line_total)||money(current.unitPrice)!==money(item.unit_price)||money(current.modifierTotal)!==money(item.modifier_total)) throw errors.conflict('CART_PRICE_CHANGED','Product or modifier pricing changed; refresh the cart before checkout');
       }
       const subtotal=money(rows.rows.reduce((sum,row)=>sum+Number(row.line_total),0));
-      const deliverySelection=await resolveDeliverySelection(client,{tenantId:request.auth.tenantId,storeId:store.id,cartItems:rows.rows,subtotal,deliveryMethodRef:request.body.delivery_method_id||null});
+      const deliverySelection=await resolveDeliverySelection(client,{tenantId:request.auth.tenantId,storeId:store.id,cartItems:rows.rows,subtotal,deliveryMethodRef:request.body.delivery_method_id||null,shippingAddress:request.body.shipping_address||null});
       const promotionResult=await resolvePromotion(client,{tenantId:request.auth.tenantId,storeId:store.id,customerId:request.auth.actorId,items:rows.rows,subtotal,promotionCode:request.body.promotion_code||null});
       const promotionTotals=applyPromotionToTotals({promotionResult,deliveryTotal:deliverySelection.deliveryTotal});
       const discountTotal=money(promotionTotals.discountTotal);const deliveryTotal=money(Math.max(0,deliverySelection.deliveryTotal-promotionTotals.deliveryDiscount));
