@@ -29,7 +29,6 @@ export function fulfillmentTypeFor(productType,mode){
 export function fulfillmentWorkflowForType(type){return {type,label:WORKFLOWS[type]?.label||type};}
 export function allowedFulfillmentTransitionsForType(type,from){return [...(WORKFLOWS[type]?.transitions?.[from]||[])];}
 export function assertFulfillmentTypeTransition(type,from,to){const allowed=allowedFulfillmentTransitionsForType(type,from);if(!allowed.includes(to))throw errors.conflict('FULFILLMENT_TRANSITION_INVALID',`${fulfillmentWorkflowForType(type).label} cannot transition from ${from} to ${to}`);}
-// Backward-compatible helpers for older callers where order type == item type.
 export function fulfillmentWorkflow(orderType,mode){return fulfillmentWorkflowForType(fulfillmentTypeFor(orderType,mode));}
 export function allowedFulfillmentTransitions(orderType,mode,from){return allowedFulfillmentTransitionsForType(fulfillmentTypeFor(orderType,mode),from);}
 export function assertFulfillmentTransition(orderType,mode,from,to){
@@ -38,7 +37,7 @@ export function assertFulfillmentTransition(orderType,mode,from,to){
 }
 
 const normalized=value=>String(value??'').trim().toLowerCase();
-const finite=value=>Number.isFinite(Number(value));
+const finite=value=>value!==null&&value!==undefined&&value!==''&&Number.isFinite(Number(value));
 export function haversineDistanceKm(lat1,lon1,lat2,lon2){
  if(![lat1,lon1,lat2,lon2].every(finite))return Infinity;
  const rad=value=>Number(value)*Math.PI/180,dLat=rad(Number(lat2)-Number(lat1)),dLon=rad(Number(lon2)-Number(lon1));
