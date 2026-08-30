@@ -25,7 +25,9 @@ assert.equal(deliveryZoneMatchesAddress(regionZone,{country_code:'KH',city:'Siem
 const radiusZone={match_type:'RADIUS',center_latitude:11.5564,center_longitude:104.9282,radius_km:5};
 assert.equal(deliveryZoneMatchesAddress(radiusZone,{latitude:11.5564,longitude:104.9282}),true);
 assert.equal(deliveryZoneMatchesAddress(radiusZone,{latitude:11.65,longitude:104.95}),false);
+assert.equal(deliveryZoneMatchesAddress({match_type:'RADIUS',center_latitude:0,center_longitude:0,radius_km:5},{latitude:null,longitude:null}),false,'missing coordinates must never coerce to 0,0');
 assert.ok(haversineDistanceKm(11.5564,104.9282,11.5564,104.9282)<0.001);
+assert.equal(haversineDistanceKm(null,null,0,0),Infinity);
 
 assert.ok(merchant.includes("/pricing-policy"),'merchant pricing policy API missing');
 assert.ok(merchant.includes("DELIVERY_ZONE_RATE_REQUIRED"),'zone-aware activation must require an active zone rate');
