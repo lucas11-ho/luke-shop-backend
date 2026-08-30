@@ -23,6 +23,8 @@ const migration=await readFile(new URL('../migrations/023_product_policy_digital
 const digitalService=await readFile(new URL('../src/modules/digital-delivery/service.js',import.meta.url),'utf8');
 const digitalRoutes=await readFile(new URL('../src/modules/digital-delivery/routes.js',import.meta.url),'utf8');
 const delivery=await readFile(new URL('../src/modules/delivery/service.js',import.meta.url),'utf8');
+const commerceRoutes=await readFile(new URL('../src/modules/commerce/customer-routes.js',import.meta.url),'utf8');
+const appSource=await readFile(new URL('../src/app.js',import.meta.url),'utf8');
 
 for(const needle of [
   'product_fulfillment_policy_guard','product_digital_policies','order_digital_entitlements',
@@ -46,6 +48,11 @@ for(const needle of [
   '/v1/customer/library','/v1/digital/content/','private, no-store','Content-Disposition',
   '/v1/merchant/products/:productId/digital-policy','VIEW_AND_DOWNLOAD',
 ]) assert.ok(digitalRoutes.includes(needle),`digital routes missing ${needle}`);
+
+assert.ok(commerceRoutes.includes("import { digitalDeliveryRoutes } from '../digital-delivery/routes.js'"),'commerce routes must import digital delivery routes');
+assert.ok(commerceRoutes.includes('await digitalDeliveryRoutes(app);'),'commerce routes must register digital delivery exactly through the commerce module');
+assert.ok(!appSource.includes("import { digitalDeliveryRoutes } from './modules/digital-delivery/routes.js'"),'buildApp must not directly import digital delivery when commerce routes already register it');
+assert.ok(!appSource.includes('await app.register(digitalDeliveryRoutes);'),'buildApp must not duplicate digital delivery route registration');
 
 assert.ok(delivery.includes("productType==='DIGITAL_IMAGE'||productType==='DIGITAL_VIDEO'"),'digital product fulfillment mapping must use real product types');
 assert.ok(delivery.includes('prepareOrderDigitalEntitlements'),'checkout fulfillment creation must freeze digital entitlements');
