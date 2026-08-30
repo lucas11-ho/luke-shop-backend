@@ -13,6 +13,14 @@ export async function resolvePaymentMethod(client, tenantId, storeId, paymentMet
 
 export async function createOrderPayment(client,{tenantId,storeId,orderId,amount,currency,paymentMethodRef=null,customerReference=null}){
   const method=await resolvePaymentMethod(client,tenantId,storeId,paymentMethodRef);
+  if(method.provider_type==='CASH_ON_DELIVERY'){
+    const eligible=await client.query(`SELECT 1 FROM order_items WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3 AND fulfillment_mode IN ('SHIPPING','LOCAL_DELIVERY') LIMIT 1`,[tenantId,storeId,orderId]);
+    if(!eligible.rowCount) throw errors.badRequest('CASH_ON_DELIVERY_NOT_AVAILABLE','Cash on delivery requires a shipping or local-delivery item');
+    // COD inventory remains reserved until merchant reconciliation confirms payment.
+    // Clearing only the expiry prevents the generic unpaid-order sweeper from releasing
+    // goods that are legitimately being prepared and delivered for cash collection.
+    await client.query(`UPDATE orders SET reservation_expires_at=NULL,updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND id=$3`,[tenantId,storeId,orderId]);
+  }
   const paymentId=uuid();
   const result=await client.query(`INSERT INTO order_payments(id,public_id,tenant_id,store_id,order_id,payment_method_id,status,amount,currency,customer_reference)
     VALUES($1,$2,$3,$4,$5,$6,'PENDING',$7,$8,$9) RETURNING *`,[paymentId,publicId('pay'),tenantId,storeId,orderId,method.id,amount,currency,customerReference||null]);
