@@ -2,6 +2,7 @@ import { errors } from '../../core/errors.js';
 import { publicId, uuid } from '../../core/identifiers.js';
 import { money } from '../orders/service.js';
 import { persistVipOrderSnapshots, resolveVipCheckoutBenefits } from '../loyalty/execution.js';
+import { prepareOrderDigitalEntitlements } from '../digital-delivery/service.js';
 
 const PHYSICAL_MODES=new Set(['SHIPPING','LOCAL_DELIVERY','PICKUP']);
 const WORKFLOWS={
@@ -18,7 +19,7 @@ const WORKFLOWS={
 
 export function fulfillmentTypeFor(productType,mode){
  if(productType==='FOOD')return mode==='PICKUP'?'FOOD_PICKUP':'FOOD_DELIVERY';
- if(productType==='DIGITAL')return mode==='DIGITAL_ACCESS'?'DIGITAL_ACCESS':'DIGITAL_DOWNLOAD';
+ if(productType==='DIGITAL_IMAGE'||productType==='DIGITAL_VIDEO')return mode==='DIGITAL_DOWNLOAD'?'DIGITAL_DOWNLOAD':'DIGITAL_ACCESS';
  if(productType==='SERVICE')return 'SERVICE';
  if(mode==='PICKUP')return 'PHYSICAL_PICKUP';
  if(mode==='LOCAL_DELIVERY')return 'PHYSICAL_LOCAL_DELIVERY';
@@ -68,6 +69,7 @@ export async function createOrderFulfillments(client,{tenantId,storeId,orderId,c
    created.push(row.rows[0]);
  }
  await persistVipOrderSnapshots(client,{tenantId,storeId,orderId,deliverySelection});
+ await prepareOrderDigitalEntitlements(client,{tenantId,storeId,orderId});
  return created;
 }
 
