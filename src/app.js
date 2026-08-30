@@ -40,6 +40,7 @@ import { platformAuthRoutes } from './modules/platform/auth-routes.js';
 import { platformControlRoutes } from './modules/platform/control-routes.js';
 import { merchantCustomerExperienceRoutes } from './modules/customer-experience/merchant-routes.js';
 import { merchantAssetRoutes, publicAssetRoutes } from './modules/assets/routes.js';
+import { productNatureRoutes } from './modules/product-nature/routes.js';
 
 export async function buildApp(config) {
   const app = Fastify({
@@ -137,6 +138,7 @@ export async function buildApp(config) {
   await app.register(merchantCustomerRoutes);
   await app.register(merchantAccessRoutes);
   await app.register(merchantCatalogRoutes);
+  await app.register(productNatureRoutes);
   await app.register(merchantAssetRoutes);
   await app.register(merchantInventoryRoutes);
   await app.register(customerOrderRoutes);
