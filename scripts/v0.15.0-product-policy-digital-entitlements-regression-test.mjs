@@ -34,6 +34,14 @@ for(const needle of [
   'timingSafeEqual','order_digital_entitlement_assets',
 ]) assert.ok(digitalService.includes(needle),`digital service missing ${needle}`);
 
+assert.ok(digitalService.includes("const revokedOrderStatuses=new Set(['CANCELLED','REFUNDED'])"),'only terminal cancellation/successful refund may permanently revoke an entitlement');
+assert.ok(digitalService.includes("const blockedOrderStatuses=new Set(['CANCELLED','REFUND_PENDING','REFUNDED'])"),'refund-pending must temporarily block content access');
+assert.ok(digitalService.includes("o.status IN ('CANCELLED','REFUNDED')"),'sync must not permanently revoke on REFUND_PENDING');
+assert.ok(digitalService.includes("const usable=row.status==='ACTIVE'&&!blockedOrderStatuses.has(row.order_status)"),'library actions must be disabled while refund is pending');
+assert.ok(digitalService.includes("JOIN media_assets a ON a.id=ea.asset_id AND a.visibility='PRIVATE'"),'authorized purchased asset lookup must use the frozen entitlement reference without requiring current Media Library ACTIVE state');
+assert.ok(digitalService.includes("WHERE e.public_id=$1 AND a.public_id=$2 AND a.visibility='PRIVATE' LIMIT 1"),'signed purchased content must survive later Media Library deactivation');
+assert.ok(!digitalService.includes("a.public_id=$2 AND a.visibility='PRIVATE' AND a.status='ACTIVE' LIMIT 1"),'historical purchased content must not depend on current Media Library active state');
+
 for(const needle of [
   '/v1/customer/library','/v1/digital/content/','private, no-store','Content-Disposition',
   '/v1/merchant/products/:productId/digital-policy','VIEW_AND_DOWNLOAD',
