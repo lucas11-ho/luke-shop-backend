@@ -72,6 +72,9 @@ BEGIN
   IF TG_OP='UPDATE' AND NEW.driver_id IS NOT DISTINCT FROM OLD.driver_id THEN RETURN NEW; END IF;
   SELECT * INTO cfg FROM delivery_driver_app_settings WHERE tenant_id=NEW.tenant_id AND store_id=NEW.store_id;
   IF NOT FOUND THEN RETURN NEW; END IF;
+  IF NOT cfg.enabled THEN
+    RAISE EXCEPTION 'Driver App is disabled for this store' USING ERRCODE='23514',CONSTRAINT='driver_app_disabled_assignment';
+  END IF;
   SELECT * INTO drv FROM delivery_drivers WHERE tenant_id=NEW.tenant_id AND store_id=NEW.store_id AND id=NEW.driver_id;
   IF cfg.require_online_for_assignment AND drv.availability_status<>'ONLINE' THEN
     RAISE EXCEPTION 'Driver must be online before assignment' USING ERRCODE='23514',CONSTRAINT='driver_app_online_assignment';
@@ -135,3 +138,21 @@ END $$;
 CREATE TRIGGER delivery_cod_driver_app_policy_trg
   BEFORE INSERT ON delivery_cod_collections
   FOR EACH ROW EXECUTE FUNCTION enforce_driver_app_cod_policy();
+
+-- The current v1 conversation is shared by Customer / Driver / Store. Turning off
+-- customer chat makes customer/driver participation read-only while Merchant may
+-- still send operational notices. Separate Driver↔Store channels are a later slice.
+CREATE OR REPLACE FUNCTION enforce_driver_app_chat_policy()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE cfg delivery_driver_app_settings%ROWTYPE;
+BEGIN
+  IF NEW.sender_type NOT IN ('CUSTOMER','DRIVER') THEN RETURN NEW; END IF;
+  SELECT * INTO cfg FROM delivery_driver_app_settings WHERE tenant_id=NEW.tenant_id AND store_id=NEW.store_id;
+  IF FOUND AND NOT cfg.allow_customer_chat THEN
+    RAISE EXCEPTION 'Customer and driver delivery chat is disabled' USING ERRCODE='23514',CONSTRAINT='driver_app_customer_chat_disabled';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER delivery_messages_driver_app_policy_trg
+  BEFORE INSERT ON delivery_messages
+  FOR EACH ROW EXECUTE FUNCTION enforce_driver_app_chat_policy();
