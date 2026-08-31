@@ -26,6 +26,7 @@ import { paymentWebhookRoutes } from './modules/payments/webhook-routes.js';
 import { merchantDeliveryRoutes } from './modules/delivery/merchant-routes.js';
 import { deliveryOperationsRoutes } from './modules/delivery/operations-routes.js';
 import { driverDeliveryRoutes } from './modules/delivery/driver-routes.js';
+import { driverAppRoutes } from './modules/delivery/driver-app-routes.js';
 import { merchantCodRoutes } from './modules/delivery/cod-merchant-routes.js';
 import { deliveryExperienceRoutes } from './modules/delivery/experience-routes.js';
 import { merchantNotificationRoutes } from './modules/notifications/merchant-routes.js';
@@ -59,8 +60,6 @@ export async function buildApp(config) {
   app.decorate('db', createDatabase(config));
   app.decorateRequest('rawBody', null);
 
-  // TokenPay signs the exact callback response body bytes. Preserve the original JSON text while
-  // keeping the same parsed request.body behavior for every existing JSON route.
   app.removeContentTypeParser('application/json');
   app.addContentTypeParser('application/json',{parseAs:'string'},(request,body,done)=>{
     request.rawBody=body;
@@ -152,6 +151,7 @@ export async function buildApp(config) {
   await app.register(merchantDeliveryRoutes);
   await app.register(deliveryOperationsRoutes);
   await app.register(driverDeliveryRoutes);
+  await app.register(driverAppRoutes);
   await app.register(merchantCodRoutes);
   await app.register(deliveryExperienceRoutes);
   await app.register(merchantNotificationRoutes);
