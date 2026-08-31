@@ -3,7 +3,8 @@
 --
 -- Provides store-level Driver App policy, driver availability/presence state,
 -- immutable presence events and per-driver language preference. Existing stores
--- remain compatible because assignment restrictions are disabled by default.
+-- remain compatible because policy enforcement activates only after a store saves
+-- a Driver App settings row.
 
 ALTER TABLE delivery_drivers
   ADD COLUMN availability_status text NOT NULL DEFAULT 'OFFLINE'
@@ -62,3 +63,75 @@ CREATE TABLE delivery_driver_presence_events (
 );
 CREATE INDEX delivery_driver_presence_events_idx
   ON delivery_driver_presence_events(tenant_id,store_id,driver_id,created_at DESC,id DESC);
+
+-- Assignment policy is enforced in the database so Merchant Admin cannot bypass it.
+CREATE OR REPLACE FUNCTION enforce_driver_app_assignment_policy()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE cfg delivery_driver_app_settings%ROWTYPE; drv delivery_drivers%ROWTYPE; active_count integer;
+BEGIN
+  IF TG_OP='UPDATE' AND NEW.driver_id IS NOT DISTINCT FROM OLD.driver_id THEN RETURN NEW; END IF;
+  SELECT * INTO cfg FROM delivery_driver_app_settings WHERE tenant_id=NEW.tenant_id AND store_id=NEW.store_id;
+  IF NOT FOUND THEN RETURN NEW; END IF;
+  SELECT * INTO drv FROM delivery_drivers WHERE tenant_id=NEW.tenant_id AND store_id=NEW.store_id AND id=NEW.driver_id;
+  IF cfg.require_online_for_assignment AND drv.availability_status<>'ONLINE' THEN
+    RAISE EXCEPTION 'Driver must be online before assignment' USING ERRCODE='23514',CONSTRAINT='driver_app_online_assignment';
+  END IF;
+  SELECT count(*) INTO active_count FROM delivery_dispatches
+   WHERE tenant_id=NEW.tenant_id AND store_id=NEW.store_id AND driver_id=NEW.driver_id
+     AND status NOT IN ('DELIVERED','CANCELLED') AND id<>NEW.id;
+  IF active_count>=cfg.max_active_jobs THEN
+    RAISE EXCEPTION 'Driver has reached maximum active jobs' USING ERRCODE='23514',CONSTRAINT='driver_app_max_active_jobs';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER delivery_dispatch_driver_app_policy_trg
+  BEFORE INSERT OR UPDATE OF driver_id ON delivery_dispatches
+  FOR EACH ROW EXECUTE FUNCTION enforce_driver_app_assignment_policy();
+
+-- Proof policy is checked independently of the browser before DELIVERED is persisted.
+CREATE OR REPLACE FUNCTION enforce_driver_app_proof_policy()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE cfg delivery_driver_app_settings%ROWTYPE; ack_count integer; photo_count integer;
+BEGIN
+  IF NEW.status<>'DELIVERED' OR (TG_OP='UPDATE' AND OLD.status='DELIVERED') THEN RETURN NEW; END IF;
+  SELECT * INTO cfg FROM delivery_driver_app_settings WHERE tenant_id=NEW.tenant_id AND store_id=NEW.store_id;
+  IF NOT FOUND THEN RETURN NEW; END IF;
+  SELECT count(*) FILTER(WHERE proof_type='ACKNOWLEDGEMENT'),count(*) FILTER(WHERE proof_type='PHOTO')
+    INTO ack_count,photo_count FROM delivery_proofs WHERE tenant_id=NEW.tenant_id AND store_id=NEW.store_id AND dispatch_id=NEW.id;
+  IF cfg.proof_policy='ACKNOWLEDGEMENT' AND ack_count=0 THEN
+    RAISE EXCEPTION 'Receiver acknowledgement is required' USING ERRCODE='23514',CONSTRAINT='driver_app_ack_required';
+  ELSIF cfg.proof_policy='PHOTO' AND photo_count=0 THEN
+    RAISE EXCEPTION 'Delivery photo is required' USING ERRCODE='23514',CONSTRAINT='driver_app_photo_required';
+  ELSIF cfg.proof_policy='PHOTO_AND_ACKNOWLEDGEMENT' AND (ack_count=0 OR photo_count=0) THEN
+    RAISE EXCEPTION 'Delivery photo and acknowledgement are required' USING ERRCODE='23514',CONSTRAINT='driver_app_photo_ack_required';
+  ELSIF cfg.proof_policy='ANY' AND ack_count=0 AND photo_count=0 THEN
+    RAISE EXCEPTION 'Delivery proof is required' USING ERRCODE='23514',CONSTRAINT='driver_app_any_proof_required';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER delivery_dispatch_driver_app_proof_trg
+  BEFORE UPDATE OF status ON delivery_dispatches
+  FOR EACH ROW EXECUTE FUNCTION enforce_driver_app_proof_policy();
+
+-- COD custody policy prevents a driver from exceeding the store's configured cash exposure.
+CREATE OR REPLACE FUNCTION enforce_driver_app_cod_policy()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE cfg delivery_driver_app_settings%ROWTYPE; held numeric(18,4);
+BEGIN
+  SELECT * INTO cfg FROM delivery_driver_app_settings WHERE tenant_id=NEW.tenant_id AND store_id=NEW.store_id;
+  IF NOT FOUND THEN RETURN NEW; END IF;
+  IF NOT cfg.cod_enabled THEN
+    RAISE EXCEPTION 'COD collection is disabled in Driver App' USING ERRCODE='23514',CONSTRAINT='driver_app_cod_disabled';
+  END IF;
+  IF cfg.max_cod_held IS NOT NULL THEN
+    SELECT COALESCE(sum(collected_amount),0) INTO held FROM delivery_cod_collections
+      WHERE tenant_id=NEW.tenant_id AND store_id=NEW.store_id AND driver_id=NEW.driver_id AND status='COLLECTED';
+    IF held+NEW.collected_amount>cfg.max_cod_held THEN
+      RAISE EXCEPTION 'Driver cash-held limit exceeded' USING ERRCODE='23514',CONSTRAINT='driver_app_cod_limit';
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER delivery_cod_driver_app_policy_trg
+  BEFORE INSERT ON delivery_cod_collections
+  FOR EACH ROW EXECUTE FUNCTION enforce_driver_app_cod_policy();
