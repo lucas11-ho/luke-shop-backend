@@ -106,7 +106,8 @@ try{
 
   expect(await req({method:'PATCH',url:`/v1/merchant/refunds/${refund.id}`,headers:ownerAuth,payload:{status:'FAILED',failure_code:'CI_DECLINED',failure_message:'Simulated provider failure'}}),200,'failed refund restores paid state');
   library=expect(await req({method:'GET',url:'/v1/customer/library',headers:buyerAuth}),200,'library restored after failed refund').data.library;
-  item=library.find(row=>row.id===entitlement.public_id);assert.ok(item);assert.equal(item.can_view,true);assert.equal(item.can_download,false);assert.equal(item.order_status,'PAID');
+  item=library.find(row=>row.id===entitlement.public_id);assert.ok(item);assert.equal(item.can_view,true);assert.equal(item.can_download,true);assert.equal(Number(item.download_limit),1);assert.equal(Number(item.download_count),1);assert.equal(item.order_status,'PAID');
+  const restoredLimitDenied=expect(await req({method:'POST',url:`/v1/customer/library/${entitlement.public_id}/assets/${upload.public_id}/access`,headers:buyerAuth,payload:{mode:'DOWNLOAD'}}),403,'download quota remains exhausted after failed refund restoration');assert.equal(restoredLimitDenied.error.code,'DIGITAL_DOWNLOAD_LIMIT_REACHED');
   const restoredView=expect(await req({method:'POST',url:`/v1/customer/library/${entitlement.public_id}/assets/${upload.public_id}/access`,headers:buyerAuth,payload:{mode:'VIEW'}}),200,'view restored after failed refund').data.access;
 
   const finalRefund=expect(await req({method:'POST',url:`/v1/merchant/orders/${checkout.id}/refunds`,headers:ownerAuth,payload:{reason:'Final digital revoke test'}}),201,'request final refund').data.refund;
