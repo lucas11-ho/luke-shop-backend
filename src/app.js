@@ -27,6 +27,7 @@ import { merchantDeliveryRoutes } from './modules/delivery/merchant-routes.js';
 import { deliveryOperationsRoutes } from './modules/delivery/operations-routes.js';
 import { driverDeliveryRoutes } from './modules/delivery/driver-routes.js';
 import { driverAppRoutes } from './modules/delivery/driver-app-routes.js';
+import { storeOperationsRoutes } from './modules/delivery/store-operations-routes.js';
 import { merchantCodRoutes } from './modules/delivery/cod-merchant-routes.js';
 import { deliveryExperienceRoutes } from './modules/delivery/experience-routes.js';
 import { merchantNotificationRoutes } from './modules/notifications/merchant-routes.js';
@@ -152,6 +153,7 @@ export async function buildApp(config) {
   await app.register(deliveryOperationsRoutes);
   await app.register(driverDeliveryRoutes);
   await app.register(driverAppRoutes);
+  await app.register(storeOperationsRoutes);
   await app.register(merchantCodRoutes);
   await app.register(deliveryExperienceRoutes);
   await app.register(merchantNotificationRoutes);
