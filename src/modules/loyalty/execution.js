@@ -136,7 +136,8 @@ export async function processVipOrderRefund(client,{tenantId,storeId,order,refun
   }
   await client.query(`UPDATE order_vip_benefits SET status='REVERSED',reversed_at=COALESCE(reversed_at,now()),reason='Order refunded' WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3 AND status IN ('APPLIED','EARNED','ISSUED')`,[tenantId,storeId,order.id]);
   const cancelled=await client.query(`UPDATE vip_entitlements SET status='CANCELLED',cancelled_at=now(),updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND source_order_id=$3 AND status='AVAILABLE'`,[tenantId,storeId,order.id]);
-  const evaluation=await evaluateCustomerVip(client,{tenantId,storeId,customerId:order.customer_id,actorType:'SYSTEM',source:'REFUND',reason:`Refund ${refundRef} completed`});
+  const program=await client.query(`SELECT 1 FROM vip_programs WHERE tenant_id=$1 AND store_id=$2`,[tenantId,storeId]);let evaluation=null;
+  if(program.rowCount)evaluation=await evaluateCustomerVip(client,{tenantId,storeId,customerId:order.customer_id,actorType:'SYSTEM',source:'REFUND',reason:`Refund ${refundRef} completed`});
   return {cashback_clawed_back:money(clawed),entitlements_cancelled:cancelled.rowCount,tier_changed:!!evaluation?.changed};
 }
 

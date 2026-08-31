@@ -63,6 +63,8 @@ jobs:
         run: npm run test:orders-db
       - name: Payments delivery and promotions lifecycle
         run: npm run test:commerce-db
+      - name: Digital entitlement lifecycle
+        run: npm run test:digital-entitlements-db
       - name: FOOD COD operations lifecycle
         run: npm run test:food-cod-ops-db
       - name: Luke CS Commerce Connector lifecycle
