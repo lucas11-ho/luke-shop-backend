@@ -46,6 +46,7 @@
     "test:staff-rbac-db": "node --env-file=.env.ci scripts/merchant-staff-rbac-lifecycle-test.mjs",
     "test:staff-rbac:local": "node --env-file=.env scripts/merchant-staff-rbac-lifecycle-test.mjs",
     "test:food-cod-ops-db": "node --env-file=.env.ci scripts/food-cod-operations-lifecycle-test.mjs",
+    "test:digital-entitlements-db": "node --env-file=.env.ci scripts/digital-entitlements-lifecycle-test.mjs",
     "bootstrap:platform-owner": "node --env-file=.env src/scripts/bootstrap-platform-owner.js",
     "test:platform:source": "node scripts/v0.7.0-platform-control-plane-regression-test.mjs",
     "test:routing:source": "node scripts/v0.7.1-storefront-routing-regression-test.mjs",
