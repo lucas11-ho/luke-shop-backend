@@ -3,10 +3,11 @@ import { normalizeEmail, uuid } from '../../core/identifiers.js';
 import { assertPasswordPolicy, hashPassword, verifyPassword } from '../../core/passwords.js';
 import { hashRefreshToken, newRefreshToken, signAccessToken } from '../../core/tokens.js';
 import { writeAudit } from '../../core/audit.js';
+import { loadEffectiveStoreScope } from '../merchant/store-access.js';
 
 async function loadIdentity(client, tenantId, email) {
   const user = await client.query(
-    `SELECT id, public_id, email, display_name, status, password_hash
+    `SELECT id, public_id, email, display_name, status, password_hash, store_access_mode
        FROM merchant_users WHERE tenant_id = $1 AND email = $2`, [tenantId, email]);
   if (!user.rowCount) return null;
   const roles = await client.query(
@@ -18,7 +19,9 @@ async function loadIdentity(client, tenantId, email) {
        JOIN merchant_roles r ON r.id = ur.role_id AND r.tenant_id = ur.tenant_id
        JOIN merchant_role_permissions rp ON rp.role_id = r.id
       WHERE ur.tenant_id = $1 AND ur.merchant_user_id = $2`, [tenantId, user.rows[0].id]);
-  return { ...user.rows[0], roleKeys: roles.rows.map((r) => r.key), permissions: permissions.rows.map((r) => r.permission_key) };
+  const roleKeys=roles.rows.map((r) => r.key);
+  const storeScope=await loadEffectiveStoreScope(client,{tenantId,userId:user.rows[0].id,roleKeys,storedMode:user.rows[0].store_access_mode});
+  return { ...user.rows[0], roleKeys, permissions: permissions.rows.map((r) => r.permission_key), storeScope };
 }
 
 async function createSession(app, client, tenantId, user, request) {
@@ -56,7 +59,7 @@ export async function merchantAuthRoutes(app) {
       await writeAudit(client, { tenantId: request.tenant.id, actorType: 'MERCHANT', actorId: user.id,
         action: 'merchant.login', targetType: 'merchant_user', targetId: user.id, requestIp: request.ip, requestId: request.id });
       return { data: { user: { id: user.public_id, email: user.email, display_name: user.display_name, status: user.status,
-        roles: user.roleKeys, permissions: user.permissions }, tokens } };
+        roles: user.roleKeys, permissions: user.permissions, store_scope: user.storeScope }, tokens } };
     });
   });
 
@@ -93,9 +96,6 @@ export async function merchantAuthRoutes(app) {
 
   app.post('/v1/merchant/auth/logout', { preHandler: [app.requireMerchantAuth] }, async (request) => {
     return app.db.transaction(async (client) => {
-      // Revoke the session ID that the auth guard just loaded from PostgreSQL. The
-      // authenticated session is already tenant/user-bound, so logout does not
-      // need to trust a second copy of actor/session identifiers from the JWT.
       const revoked = await client.query(
         `UPDATE merchant_sessions
             SET revoked_at = now(), last_seen_at = now()
@@ -113,7 +113,7 @@ export async function merchantAuthRoutes(app) {
 
   app.get('/v1/merchant/me', { preHandler: [app.requireMerchantAuth] }, async (request) => ({ data: {
     user: { id: request.auth.profile.public_id, email: request.auth.profile.email, display_name: request.auth.profile.display_name,
-      status: request.auth.profile.status, roles: request.auth.roleKeys, permissions: request.auth.permissions },
+      status: request.auth.profile.status, roles: request.auth.roleKeys, permissions: request.auth.permissions, store_scope: request.auth.storeAccess },
   } }));
 
   app.patch('/v1/merchant/me', {
@@ -131,7 +131,7 @@ export async function merchantAuthRoutes(app) {
     await writeAudit(client, { tenantId: request.auth.tenantId, actorType: 'MERCHANT', actorId: request.auth.actorId,
       action: 'merchant.profile.update', targetType: 'merchant_user', targetId: request.auth.actorId,
       metadata: { changed_fields: ['display_name'] }, requestIp: request.ip, requestId: request.id });
-    return { data: { user: { id: updated.rows[0].public_id, ...updated.rows[0], roles: request.auth.roleKeys, permissions: request.auth.permissions } } };
+    return { data: { user: { id: updated.rows[0].public_id, ...updated.rows[0], roles: request.auth.roleKeys, permissions: request.auth.permissions, store_scope: request.auth.storeAccess } } };
   }));
 
   app.post('/v1/merchant/me/change-password', {
