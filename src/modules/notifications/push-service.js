@@ -20,10 +20,16 @@ export function validateSubscriptionInput(subscription,config=loadStaffPushConfi
 export async function registerStaffPushSubscription(db,{tenantId,merchantUserId,subscription,deviceLabel=null,userAgent=null,config=loadStaffPushConfig()}){
  const clean=validateSubscriptionInput(subscription,config),endpointHash=hashEndpoint(clean.endpoint),label=String(deviceLabel||'').trim().slice(0,120)||null,agent=String(userAgent||'').trim().slice(0,1000)||null;
  return db.transaction(async client=>{
-  await client.query(`DELETE FROM staff_push_subscriptions WHERE endpoint_hash=$1 AND (tenant_id<>$2 OR merchant_user_id<>$3)`,[endpointHash,tenantId,merchantUserId]);
+  const existing=(await client.query(`SELECT id,tenant_id,merchant_user_id,p256dh,auth_secret FROM staff_push_subscriptions WHERE endpoint_hash=$1 FOR UPDATE`,[endpointHash])).rows[0]||null;
+  if(existing){
+   const sameOwner=String(existing.tenant_id)===String(tenantId)&&String(existing.merchant_user_id)===String(merchantUserId);
+   const sameKeys=existing.p256dh===clean.p256dh&&existing.auth_secret===clean.authSecret;
+   if(!sameOwner&&!sameKeys)throw new Error('Push endpoint is already registered to another account');
+   const row=await client.query(`UPDATE staff_push_subscriptions SET tenant_id=$2,merchant_user_id=$3,endpoint=$4,p256dh=$5,auth_secret=$6,device_label=COALESCE($7,device_label),user_agent=$8,status='ACTIVE',failure_count=0,last_seen_at=now(),disabled_at=NULL,updated_at=now() WHERE id=$1 RETURNING public_id AS id,device_label,status,last_seen_at,last_success_at,created_at`,[existing.id,tenantId,merchantUserId,clean.endpoint,clean.p256dh,clean.authSecret,label,agent]);
+   return row.rows[0];
+  }
   const row=await client.query(`INSERT INTO staff_push_subscriptions(tenant_id,merchant_user_id,endpoint,endpoint_hash,p256dh,auth_secret,device_label,user_agent,status,failure_count,last_seen_at,disabled_at,updated_at)
    VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE',0,now(),NULL,now())
-   ON CONFLICT(endpoint_hash) DO UPDATE SET tenant_id=EXCLUDED.tenant_id,merchant_user_id=EXCLUDED.merchant_user_id,endpoint=EXCLUDED.endpoint,p256dh=EXCLUDED.p256dh,auth_secret=EXCLUDED.auth_secret,device_label=COALESCE(EXCLUDED.device_label,staff_push_subscriptions.device_label),user_agent=EXCLUDED.user_agent,status='ACTIVE',failure_count=0,last_seen_at=now(),disabled_at=NULL,updated_at=now()
    RETURNING public_id AS id,device_label,status,last_seen_at,last_success_at,created_at`,[tenantId,merchantUserId,clean.endpoint,endpointHash,clean.p256dh,clean.authSecret,label,agent]);
   return row.rows[0];
  });
@@ -112,12 +118,19 @@ async function logDelivery(db,event,subscription,status,result){
  await db.query(`INSERT INTO staff_push_delivery_log(event_id,subscription_id,tenant_id,merchant_user_id,delivery_status,provider_status,error_code) VALUES($1,$2,$3,$4,$5,$6,$7)`,[event.id,subscription?.id||null,event.tenant_id,subscription?.merchant_user_id||null,status,result?.status??null,result?.error??null]);
 }
 
+async function deliveredSubscriptionIds(db,eventId){
+ const rows=await db.query(`SELECT DISTINCT subscription_id FROM staff_push_delivery_log WHERE event_id=$1 AND delivery_status='DELIVERED' AND subscription_id IS NOT NULL`,[eventId]);
+ return new Set(rows.rows.map(row=>String(row.subscription_id)));
+}
+
 async function deliverEvent(app,event,config){
  let recipients;
  try{recipients=await resolvePushRecipients(app.db,event);}catch(error){return retryEvent(app.db,event,config,error?.message||'RECIPIENT_RESOLUTION_FAILED');}
+ const alreadyDelivered=await deliveredSubscriptionIds(app.db,event.id);
  let transient=false,lastError=null;
  const payload={version:1,category:event.category,title:event.title,body:event.body,route:event.route,event_id:event.public_id,entity:event.entity_type&&event.entity_ref?{type:event.entity_type,ref:event.entity_ref}:null};
  for(const subscription of recipients){
+  if(alreadyDelivered.has(String(subscription.id)))continue;
   const result=await sendWebPush(subscription,payload,config);
   if(result.kind==='DELIVERED'){
    await app.db.query(`UPDATE staff_push_subscriptions SET failure_count=0,last_success_at=now(),last_seen_at=now(),updated_at=now() WHERE id=$1`,[subscription.id]);
