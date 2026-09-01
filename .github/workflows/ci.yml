@@ -36,6 +36,8 @@ jobs:
       - run: npm run verify
       - name: Staff store scope source guard
         run: node scripts/v0.15.0-staff-store-scope-v1-regression-test.mjs
+      - name: Staff Web push v1.4 source/security guard
+        run: node scripts/v0.15.0-staff-web-push-v1-4-regression-test.mjs
       - name: Production environment security preflight
         run: node scripts/production-env-preflight-test.mjs
       - name: v0.4.1 runtime integration source guard
@@ -52,6 +54,7 @@ jobs:
           CS_CONTEXT_SIGNING_SECRET=ci-only-context-signing-secret-not-for-production-abcdefghijklmnopqrstuvwxyz0123456789
           CS_SERVICE_SIGNING_SECRET=ci-only-service-signing-secret-not-for-production-9876543210zyxwvutsrqponmlkjihgfedcba
           CORS_ORIGINS=http://localhost:5173
+          STAFF_WEB_PUSH_ENABLED=false
           EOF
       - name: Migrate disposable PostgreSQL
         run: node --env-file=.env.ci src/db/migrate.js
@@ -75,6 +78,8 @@ jobs:
         run: npm run test:staff-rbac-db
       - name: Staff store scope lifecycle
         run: node --env-file=.env.ci scripts/staff-store-scope-lifecycle-test.mjs
+      - name: Staff Web push v1.4 lifecycle
+        run: node --env-file=.env.ci scripts/staff-web-push-lifecycle-test.mjs
       - name: v0.1.1 authentication reliability source guard
         run: node scripts/v0.1.1-auth-reliability-regression-test.mjs
       - name: Dependency audit
