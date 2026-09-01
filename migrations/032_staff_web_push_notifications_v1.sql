@@ -63,7 +63,6 @@ CREATE TABLE staff_push_store_settings (
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY(tenant_id,store_id),
   FOREIGN KEY(tenant_id,store_id) REFERENCES stores(tenant_id,id) ON DELETE CASCADE,
-  FOREIGN KEY(tenant_id,updated_by) REFERENCES merchant_users(tenant_id,id) ON DELETE SET NULL,
   CHECK(jsonb_typeof(categories)='object')
 );
 
@@ -116,11 +115,13 @@ CREATE TABLE staff_push_delivery_log (
   delivery_status text NOT NULL CHECK(delivery_status IN ('DELIVERED','EXPIRED','FAILED','SKIPPED')),
   provider_status integer,
   error_code text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  FOREIGN KEY(tenant_id,merchant_user_id) REFERENCES merchant_users(tenant_id,id) ON DELETE SET NULL
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX staff_push_delivery_log_event_idx ON staff_push_delivery_log(event_id,id);
 CREATE INDEX staff_push_delivery_log_user_idx ON staff_push_delivery_log(tenant_id,merchant_user_id,created_at DESC);
+
+-- updated_by / delivery-log actor references intentionally remain audit snapshots.
+-- Avoid composite ON DELETE SET NULL foreign keys that could attempt to null tenant_id.
 
 CREATE OR REPLACE FUNCTION enqueue_staff_push_event(
   p_tenant_id uuid,p_store_id uuid,p_category text,p_target_users uuid[],p_target_roles text[],
@@ -185,7 +186,7 @@ BEGIN
   RETURN NEW;
 END $$;
 CREATE TRIGGER delivery_dispatch_staff_push_trg
-AFTER INSERT OR UPDATE OF driver_id,status ON delivery_dispatches
+AFTER INSERT OR UPDATE ON delivery_dispatches
 FOR EACH ROW EXECUTE FUNCTION staff_push_dispatch_trigger();
 
 CREATE OR REPLACE FUNCTION staff_push_kitchen_trigger()
@@ -203,7 +204,7 @@ BEGIN
   RETURN NEW;
 END $$;
 CREATE TRIGGER kitchen_job_staff_push_trg
-AFTER INSERT OR UPDATE OF status ON kitchen_jobs
+AFTER INSERT OR UPDATE ON kitchen_jobs
 FOR EACH ROW EXECUTE FUNCTION staff_push_kitchen_trigger();
 
 CREATE OR REPLACE FUNCTION staff_push_cod_trigger()
@@ -221,7 +222,7 @@ BEGIN
   RETURN NEW;
 END $$;
 CREATE TRIGGER delivery_cod_staff_push_trg
-AFTER INSERT OR UPDATE OF status ON delivery_cod_collections
+AFTER INSERT OR UPDATE ON delivery_cod_collections
 FOR EACH ROW EXECUTE FUNCTION staff_push_cod_trigger();
 
 CREATE OR REPLACE FUNCTION staff_push_delivery_message_trigger()
