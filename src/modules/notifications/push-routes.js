@@ -15,8 +15,8 @@ const requireEnabled=config=>{if(!config.enabled)throw errors.conflict('STAFF_PU
 
 export async function staffPushRoutes(app){
  const selfAuth=[app.requireMerchantAuth];
- const settingsRead=[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.STAFF_NOTIFICATIONS_READ||'staff.notifications.read')];
- const settingsManage=[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.STAFF_NOTIFICATIONS_MANAGE||'staff.notifications.manage')];
+ const settingsRead=[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.STAFF_NOTIFICATIONS_READ)];
+ const settingsManage=[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.STAFF_NOTIFICATIONS_MANAGE)];
 
  app.get('/v1/merchant/staff-push/public-key',{preHandler:selfAuth},async()=>{
   const config=loadStaffPushConfig();return{data:{enabled:config.enabled,public_key:config.enabled?config.publicKey:null,categories:CATEGORIES}};
@@ -49,7 +49,7 @@ export async function staffPushRoutes(app){
  });
  app.put('/v1/merchant/staff-push/settings',{preHandler:settingsManage,schema:{body:{type:'object',additionalProperties:false,properties:{enabled:{type:'boolean'},categories:categorySchema}}},async request=>{
   const store=await resolveStore(app.db,request.auth.tenantId,storeHeader(request),{requireActive:false}),current=await readStaffPushStoreSettings(app.db,{tenantId:request.auth.tenantId,storeId:store.id});
-  const settings=await app.db.transaction(async client=>{const saved=await saveStaffPushStoreSettings({query:(...args)=>client.query(...args),transaction:async fn=>fn(client)},{tenantId:request.auth.tenantId,storeId:store.id,enabled:request.body.enabled??current.enabled,categories:request.body.categories??current.categories,actorId:request.auth.actorId});await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'staff.push.settings.update',targetType:'store',targetId:store.id,metadata:{enabled:saved.enabled,categories:saved.categories},requestIp:request.ip,requestId:request.id});return saved;});
+  const settings=await app.db.transaction(async client=>{const saved=await saveStaffPushStoreSettings(client,{tenantId:request.auth.tenantId,storeId:store.id,enabled:request.body.enabled??current.enabled,categories:request.body.categories??current.categories,actorId:request.auth.actorId});await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'staff.push.settings.update',targetType:'store',targetId:store.id,metadata:{enabled:saved.enabled,categories:saved.categories},requestIp:request.ip,requestId:request.id});return saved;});
   return{data:{settings,categories:CATEGORIES}};
  });
 
