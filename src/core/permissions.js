@@ -21,6 +21,8 @@ export const PERMISSIONS = Object.freeze({
   KITCHEN_MANAGE: 'kitchen.manage',
   CASHIER_READ: 'cashier.read',
   CASHIER_MANAGE: 'cashier.manage',
+  STAFF_NOTIFICATIONS_READ: 'staff.notifications.read',
+  STAFF_NOTIFICATIONS_MANAGE: 'staff.notifications.manage',
   PROMOTIONS_READ: 'promotions.read',
   PROMOTIONS_WRITE: 'promotions.write',
   CS_INTEGRATION_READ: 'integrations.customer_service.read',
