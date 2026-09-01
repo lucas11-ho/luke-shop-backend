@@ -1,5 +1,6 @@
 import { errors } from '../core/errors.js';
 import { verifyAccessToken } from '../core/tokens.js';
+import { enforceMerchantStoreScope } from '../modules/merchant/store-access.js';
 
 function bearer(request) {
   const value = request.headers.authorization;
@@ -46,7 +47,7 @@ export function authPlugin(app) {
     }
     if (payload.actor_type !== 'MERCHANT') throw errors.forbidden('ACTOR_TYPE_INVALID', 'Merchant authentication required');
     const result = await app.db.query(
-      `SELECT u.id, u.public_id, u.status, u.display_name, u.email, s.id AS session_id
+      `SELECT u.id, u.public_id, u.status, u.display_name, u.email, u.store_access_mode, s.id AS session_id
          FROM merchant_sessions s
          JOIN merchant_users u ON u.id = s.merchant_user_id AND u.tenant_id = s.tenant_id
          JOIN tenants t ON t.id = s.tenant_id
@@ -78,6 +79,9 @@ export function authPlugin(app) {
       roleKeys: roles.rows.map((row) => row.key),
       profile: result.rows[0],
     };
+    // Store authorization is deliberately re-read from PostgreSQL on every
+    // authenticated request. JWT/browser store state is never authoritative.
+    await enforceMerchantStoreScope(app.db, request, request.auth);
   });
 
   app.decorate('requirePermission', function requirePermission(permission) {
