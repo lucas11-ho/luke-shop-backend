@@ -1,14 +1,16 @@
 import assert from'node:assert/strict';
-import{randomUUID}from'node:crypto';
+import{createECDH,randomBytes,randomUUID}from'node:crypto';
 import{createDatabase}from'../src/db/pool.js';
 import{loadConfig}from'../src/config.js';
-import{resolvePushRecipients}from'../src/modules/notifications/push-service.js';
+import{registerStaffPushSubscription,resolvePushRecipients}from'../src/modules/notifications/push-service.js';
 
 const db=createDatabase(loadConfig()),suffix=randomUUID().replaceAll('-','').slice(0,10);
 const ids={tenant:randomUUID(),otherTenant:randomUUID(),storeA:randomUUID(),storeB:randomUUID(),otherStore:randomUUID(),kitchenA:randomUUID(),kitchenB:randomUUID(),finance:randomUUID(),partial:randomUUID(),driverA:randomUUID(),driverB:randomUUID()};
 const refs={tenant:`tnt_push_${suffix}`,otherTenant:`tnt_push_other_${suffix}`,storeA:`str_push_a_${suffix}`,storeB:`str_push_b_${suffix}`,otherStore:`str_push_other_${suffix}`};
 const sub=(user,label)=>[randomUUID(),`sps_${label}_${suffix}`,ids.tenant,user,`https://fcm.googleapis.com/fcm/send/${label}-${suffix}`,`${label}${'A'.repeat(63)}`.slice(0,64),`B${'C'.repeat(31)}`,label];
 const event=(patch={})=>({tenant_id:ids.tenant,store_id:ids.storeA,category:'KITCHEN_NEW_ORDER',target_user_ids:[],target_role_keys:['KITCHEN'],target_permission_keys:[],permission_mode:'ANY',...patch});
+const browserSubscription=(endpoint)=>{const ecdh=createECDH('prime256v1');ecdh.generateKeys();return{endpoint,keys:{p256dh:ecdh.getPublicKey(null,'uncompressed').toString('base64url'),auth:randomBytes(16).toString('base64url')}}};
+const validationConfig={allowedHostSuffixes:['fcm.googleapis.com']};
 try{
  await db.transaction(async client=>{
   await client.query("INSERT INTO tenants(id,public_id,slug,name,status) VALUES($1,$2,$3,$4,'ACTIVE'),($5,$6,$7,$8,'ACTIVE')",[ids.tenant,refs.tenant,`push-${suffix}`,`Push ${suffix}`,ids.otherTenant,refs.otherTenant,`push-other-${suffix}`,`Push Other ${suffix}`]);
@@ -28,6 +30,11 @@ try{
   const otherKitchenRole=(await client.query("SELECT id FROM merchant_roles WHERE tenant_id=$1 AND key='KITCHEN'",[ids.otherTenant])).rows[0].id;await client.query('INSERT INTO merchant_user_roles(tenant_id,merchant_user_id,role_id) VALUES($1,$2,$3)',[ids.otherTenant,otherUser,otherKitchenRole]);
   await client.query(`INSERT INTO staff_push_subscriptions(public_id,tenant_id,merchant_user_id,endpoint,endpoint_hash,p256dh,auth_secret,device_label) VALUES($1,$2,$3,$4,encode(digest($4,'sha256'),'hex'),$5,$6,'other')`,[`sps_other_${suffix}`,ids.otherTenant,otherUser,`https://fcm.googleapis.com/fcm/send/other-${suffix}`,'D'.repeat(64),'E'.repeat(32)]);
  });
+
+ const protectedEndpoint=`https://fcm.googleapis.com/fcm/send/ownership-${suffix}`,ownedSubscription=browserSubscription(protectedEndpoint);
+ await registerStaffPushSubscription(db,{tenantId:ids.tenant,merchantUserId:ids.driverA,subscription:ownedSubscription,deviceLabel:'Driver A phone',config:validationConfig});
+ let hijackBlocked=false;try{await registerStaffPushSubscription(db,{tenantId:ids.tenant,merchantUserId:ids.driverB,subscription:browserSubscription(protectedEndpoint),deviceLabel:'Imposter phone',config:validationConfig});}catch(error){hijackBlocked=/already registered to another account/i.test(error.message);}assert.equal(hijackBlocked,true,'endpoint knowledge alone must not transfer a subscription to another staff account');
+ const ownerCheck=await db.query('SELECT merchant_user_id FROM staff_push_subscriptions WHERE endpoint_hash=encode(digest($1,\'sha256\'),\'hex\')',[protectedEndpoint]);assert.equal(String(ownerCheck.rows[0].merchant_user_id),ids.driverA,'failed hijack must preserve original subscription owner');
 
  let recipients=await resolvePushRecipients(db,event());
  assert.deepEqual(recipients.map(r=>r.merchant_user_id).sort(),[ids.kitchenA].sort(),'only the KITCHEN user assigned to Store A should receive Store A kitchen push');
@@ -64,6 +71,7 @@ try{
  const kitchenEvent=await db.query("SELECT category,target_role_keys FROM staff_push_outbox WHERE tenant_id=$1 AND entity_type='kitchen_job' AND category='KITCHEN_NEW_ORDER' ORDER BY created_at DESC LIMIT 1",[ids.tenant]);
  assert.equal(kitchenEvent.rowCount,1,'food fulfillment trigger must enqueue kitchen attention');assert.deepEqual(kitchenEvent.rows[0].target_role_keys,['KITCHEN']);
 
+ console.log('PASS Staff push subscription ownership cannot be hijacked by endpoint knowledge');
  console.log('PASS Staff push recipients are tenant/store/role scoped');
  console.log('PASS user/store category preferences suppress delivery');
  console.log('PASS COD reconciliation requires both delivery.manage and payments.manage');
