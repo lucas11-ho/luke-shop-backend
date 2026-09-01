@@ -66,7 +66,7 @@ export async function merchantAuthRoutes(app) {
   app.post('/v1/merchant/auth/refresh', {
     preHandler: [app.requireTenant],
     config: { rateLimit: { max: app.config.authRateLimitMax, timeWindow: '1 minute' } },
-    schema: { body: { type: 'object', additionalProperties: false, required: ['refresh_token'], properties: { refresh_token: { type: 'string', minLength: 40, maxLength: 512 } } },
+    schema: { body: { type: 'object', additionalProperties: false, required: ['refresh_token'], properties: { refresh_token: { type: 'string', minLength: 40, maxLength: 512 } } } },
   }, async (request) => {
     const digest = hashRefreshToken(request.body.refresh_token);
     return app.db.transaction(async (client) => {
