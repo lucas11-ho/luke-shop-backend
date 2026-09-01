@@ -1,3 +1,4 @@
+import { createECDH } from 'node:crypto';
 import { isIP } from 'node:net';
 
 const TRUTHY=new Set(['1','true','yes','on']);
@@ -6,6 +7,18 @@ const b64url=/^[A-Za-z0-9_-]+$/;
 const bool=(name,fallback=false)=>{const raw=process.env[name];return raw==null||raw===''?fallback:TRUTHY.has(raw.trim().toLowerCase());};
 const int=(name,fallback,min,max)=>{const raw=process.env[name];if(raw==null||raw==='')return fallback;const value=Number.parseInt(raw,10);if(!Number.isInteger(value)||value<min||value>max)throw new Error(`${name} must be an integer between ${min} and ${max}`);return value;};
 const decode=value=>Buffer.from(String(value||''),'base64url');
+
+function verifyVapidPair(publicKey,privateKey){
+ const expected=decode(publicKey),privateBytes=decode(privateKey);
+ try{
+  const ecdh=createECDH('prime256v1');
+  ecdh.setPrivateKey(privateBytes);
+  const derived=ecdh.getPublicKey(null,'uncompressed');
+  if(!derived.equals(expected))throw new Error('mismatch');
+ }catch{
+  throw new Error('STAFF_WEB_PUSH_VAPID_PUBLIC_KEY and STAFF_WEB_PUSH_VAPID_PRIVATE_KEY must be a matching P-256 key pair');
+ }
+}
 
 export function loadStaffPushConfig(){
  const enabled=bool('STAFF_WEB_PUSH_ENABLED',false);
@@ -24,6 +37,7 @@ export function loadStaffPushConfig(){
   if(!publicKey||!privateKey||!subject)throw new Error('STAFF_WEB_PUSH_VAPID_PUBLIC_KEY, STAFF_WEB_PUSH_VAPID_PRIVATE_KEY, and STAFF_WEB_PUSH_VAPID_SUBJECT are required when STAFF_WEB_PUSH_ENABLED=true');
   if(!b64url.test(publicKey)||decode(publicKey).length!==65||decode(publicKey)[0]!==4)throw new Error('STAFF_WEB_PUSH_VAPID_PUBLIC_KEY must be an uncompressed P-256 public key encoded as base64url');
   if(!b64url.test(privateKey)||decode(privateKey).length!==32)throw new Error('STAFF_WEB_PUSH_VAPID_PRIVATE_KEY must be a 32-byte P-256 private key encoded as base64url');
+  verifyVapidPair(publicKey,privateKey);
   if(!(subject.startsWith('mailto:')||subject.startsWith('https://')))throw new Error('STAFF_WEB_PUSH_VAPID_SUBJECT must use mailto: or https:');
   if(!allowedHostSuffixes.length)throw new Error('STAFF_WEB_PUSH_ALLOWED_HOST_SUFFIXES must not be empty when Staff Web push is enabled');
  }
