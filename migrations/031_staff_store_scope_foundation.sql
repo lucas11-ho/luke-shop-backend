@@ -19,9 +19,7 @@ CREATE TABLE IF NOT EXISTS merchant_user_store_access (
   FOREIGN KEY (tenant_id,merchant_user_id)
     REFERENCES merchant_users(tenant_id,id) ON DELETE CASCADE,
   FOREIGN KEY (tenant_id,store_id)
-    REFERENCES stores(tenant_id,id) ON DELETE CASCADE,
-  FOREIGN KEY (tenant_id,created_by)
-    REFERENCES merchant_users(tenant_id,id) ON DELETE SET NULL
+    REFERENCES stores(tenant_id,id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS merchant_user_store_access_user_idx
