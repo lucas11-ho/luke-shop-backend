@@ -34,6 +34,8 @@ jobs:
             npm install --no-audit --no-fund --registry=https://registry.npmjs.org/
           fi
       - run: npm run verify
+      - name: Staff store scope source guard
+        run: node scripts/v0.15.0-staff-store-scope-v1-regression-test.mjs
       - name: Production environment security preflight
         run: node scripts/production-env-preflight-test.mjs
       - name: v0.4.1 runtime integration source guard
@@ -71,6 +73,8 @@ jobs:
         run: npm run test:cs-connector-db
       - name: Merchant staff and RBAC lifecycle
         run: npm run test:staff-rbac-db
+      - name: Staff store scope lifecycle
+        run: node --env-file=.env.ci scripts/staff-store-scope-lifecycle-test.mjs
       - name: v0.1.1 authentication reliability source guard
         run: node scripts/v0.1.1-auth-reliability-regression-test.mjs
       - name: Dependency audit
