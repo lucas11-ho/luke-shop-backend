@@ -7,6 +7,7 @@ import { confirmPayment } from '../payments/service.js';
 import { createMerchantNotification } from '../notifications/service.js';
 import { fulfillmentDetails } from '../delivery/service.js';
 import { processVipOrderCompletion } from '../loyalty/execution.js';
+import { restoreVipCashbackRedemptionForOrder } from '../loyalty/redemption.js';
 
 const orderStatuses = ['PENDING_PAYMENT','PAID','CONFIRMED','RESTAURANT_ACCEPTED','PREPARING','READY','PROCESSING','PACKED','PICKED_UP','SHIPPED','OUT_FOR_DELIVERY','ACCESS_GRANTED','AVAILABLE_FOR_DOWNLOAD','DELIVERED','COMPLETED','CANCELLED','PAYMENT_FAILED','REFUND_PENDING','REFUNDED'];
 const storeHeader = (request) => request.headers['x-store-id'] || null;
@@ -48,7 +49,7 @@ export async function merchantOrderRoutes(app) {
         if(payment.rowCount){await confirmPayment(client,{tenantId:request.auth.tenantId,storeId:store.id,order,requestId:request.id});await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'order.transition',targetType:'order',targetId:order.id,metadata:{order_number:order.order_number,from_status:order.status,to_status:'PAID',payment_status:'PAID'},requestIp:request.ip,requestId:request.id});return order.public_id;}
         await consumeReservations(client,{tenantId:request.auth.tenantId,storeId:store.id,orderId:order.id,requestId:request.id});
       }
-      if(toStatus==='CANCELLED') {await releaseReservations(client,{tenantId:request.auth.tenantId,storeId:store.id,orderId:order.id,requestId:request.id});await client.query(`UPDATE order_payments SET status='CANCELLED',cancelled_at=now(),updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3 AND status IN ('PENDING','PROCESSING','FAILED')`,[request.auth.tenantId,store.id,order.id]);await client.query(`UPDATE order_fulfillments SET status='CANCELLED',updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3 AND status NOT IN ('DELIVERED','COMPLETED','CANCELLED')`,[request.auth.tenantId,store.id,order.id]);}
+      if(toStatus==='CANCELLED') {await releaseReservations(client,{tenantId:request.auth.tenantId,storeId:store.id,orderId:order.id,requestId:request.id});await client.query(`UPDATE order_payments SET status='CANCELLED',cancelled_at=now(),updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3 AND status IN ('PENDING','PROCESSING','FAILED')`,[request.auth.tenantId,store.id,order.id]);await client.query(`UPDATE order_fulfillments SET status='CANCELLED',updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3 AND status NOT IN ('DELIVERED','COMPLETED','CANCELLED')`,[request.auth.tenantId,store.id,order.id]);await restoreVipCashbackRedemptionForOrder(client,{tenantId:request.auth.tenantId,storeId:store.id,orderId:order.id,restorationKey:`CANCEL:${order.public_id}`,reason:'VIP cashback restored after merchant cancellation'});}
       const paymentStatus=paymentStatusFor(toStatus,order.payment_status);
       const reservationExpiry=['PAID','CANCELLED'].includes(toStatus)?'NULL':'reservation_expires_at';
       const paidAt=toStatus==='PAID'?'now()':'paid_at';const cancelledAt=toStatus==='CANCELLED'?'now()':'cancelled_at';const completedAt=['COMPLETED','REFUNDED'].includes(toStatus)?'now()':'completed_at';
