@@ -44,9 +44,16 @@ try{
   const newEntry=await customer('new','1991-01-20','2026-09-02T12:00:00.000Z');
   await db.query(`UPDATE vip_programs SET recurring_entitlement_issuance_enabled=true,recurring_entitlement_issuance_enabled_at='2026-09-01T00:00:00.000Z' WHERE id=$1`,[ids.program]);
 
-  const first=await db.transaction(client=>runRecurringVipEntitlements(client,{tenantId:ids.tenant,storeId:ids.store,now}));
-  assert.equal(first.issued,6,'two monthly + two annual + one birthday + one post-enable tier-entry entitlement should issue');
-  assert.deepEqual(first.by_frequency,{TIER_ENTRY:1,MONTHLY:2,ANNUAL:2,BIRTHDAY:1});
+  const firstPage=await db.transaction(client=>runRecurringVipEntitlements(client,{tenantId:ids.tenant,storeId:ids.store,now,limit:1}));
+  assert.equal(firstPage.processed_members,1);assert.ok(firstPage.last_customer_id,'first page must return a scheduler cursor');assert.equal(firstPage.has_more,true,'a full first page must allow the scheduler to continue');
+  const secondPage=await db.transaction(client=>runRecurringVipEntitlements(client,{tenantId:ids.tenant,storeId:ids.store,now,limit:1,afterCustomerId:firstPage.last_customer_id}));
+  assert.equal(secondPage.processed_members,1);assert.ok(secondPage.last_customer_id);assert.notEqual(secondPage.last_customer_id,firstPage.last_customer_id,'keyset cursor must advance to the next member');
+  const exhaustedPage=await db.transaction(client=>runRecurringVipEntitlements(client,{tenantId:ids.tenant,storeId:ids.store,now,limit:1,afterCustomerId:secondPage.last_customer_id}));
+  assert.equal(exhaustedPage.processed_members,0);assert.equal(exhaustedPage.has_more,false);assert.equal(exhaustedPage.last_customer_id,null);
+  const issuedAcrossPages=firstPage.issued+secondPage.issued;
+  const frequencies=Object.fromEntries(Object.keys(firstPage.by_frequency).map(key=>[key,Number(firstPage.by_frequency[key]||0)+Number(secondPage.by_frequency[key]||0)]));
+  assert.equal(issuedAcrossPages,6,'two paginated members must receive two monthly + two annual + one birthday + one post-enable tier-entry entitlement');
+  assert.deepEqual(frequencies,{TIER_ENTRY:1,MONTHLY:2,ANNUAL:2,BIRTHDAY:1});
   const oldTier=await db.query(`SELECT count(*)::int AS count FROM vip_entitlements WHERE tenant_id=$1 AND store_id=$2 AND customer_id=$3 AND benefit_id=$4`,[ids.tenant,ids.store,oldEntry.id,benefitIds.tier]);
   assert.equal(oldTier.rows[0].count,0,'tier-entry history before enablement must never backfill');
   const newTier=await db.query(`SELECT count(*)::int AS count FROM vip_entitlements WHERE tenant_id=$1 AND store_id=$2 AND customer_id=$3 AND benefit_id=$4`,[ids.tenant,ids.store,newEntry.id,benefitIds.tier]);
@@ -63,7 +70,7 @@ try{
 
   const counts=await db.query(`SELECT frequency,count(*)::int AS count FROM vip_entitlements e JOIN vip_benefits b ON b.id=e.benefit_id WHERE e.tenant_id=$1 AND e.store_id=$2 GROUP BY frequency ORDER BY frequency`,[ids.tenant,ids.store]);
   assert.deepEqual(Object.fromEntries(counts.rows.map(row=>[row.frequency,row.count])),{ANNUAL:2,BIRTHDAY:1,MANUAL:1,MONTHLY:2,TIER_ENTRY:1});
-  console.log('PASS recurring issuance defaults off, issues deterministic monthly/annual/birthday/tier-entry entitlements, prevents tier-entry backfill, and remains idempotent');
+  console.log('PASS recurring issuance defaults off, keyset-paginates every member, issues deterministic monthly/annual/birthday/tier-entry entitlements, prevents tier-entry backfill, and remains idempotent');
   console.log('PASS manual VIP entitlement retry keys prevent duplicate customer grants');
 }finally{
   await db.query('DELETE FROM tenants WHERE id=$1',[ids.tenant]).catch(()=>{});
