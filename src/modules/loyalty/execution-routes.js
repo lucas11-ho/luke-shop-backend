@@ -65,7 +65,8 @@ export async function loyaltyExecutionRoutes(app){
   app.post('/v1/merchant/vip/issuance/run',{preHandler:manageGuard(app),schema:{body:{type:'object',additionalProperties:false,properties:{limit:{type:'integer',minimum:1,maximum:5000}}}}},async request=>{
     const store=await merchantStore(app,request),tenantId=request.auth.tenantId;let summary;
     await app.db.transaction(async client=>{
-      summary=await runRecurringVipEntitlements(client,{tenantId,storeId:store.id,limit:request.body?.limit||5000});
+      const rawSummary=await runRecurringVipEntitlements(client,{tenantId,storeId:store.id,limit:request.body?.limit||5000});
+      const{last_customer_id:_lastCustomerId,has_more:_hasMore,...publicSummary}=rawSummary;summary=publicSummary;
       await writeAudit(client,{tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'vip.recurring_entitlements.run',targetType:'store',targetId:store.id,metadata:summary,requestIp:request.ip,requestId:request.id});
     });
     return {data:{summary}};
