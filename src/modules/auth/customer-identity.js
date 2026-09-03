@@ -13,7 +13,7 @@ export const DEFAULT_PHONE_COUNTRIES = ['KH','IN','MM','ID','PH','TH','VN','MY',
 function b64url(value){return Buffer.from(value).toString('base64url');}
 function safeEqualText(a,b){const aa=Buffer.from(String(a||'')),bb=Buffer.from(String(b||''));return aa.length===bb.length&&timingSafeEqual(aa,bb);}
 
-export function publicCustomer(row){return {id:row.public_id,customer_code:row.customer_code||row.public_id,display_name:row.display_name,email:row.email||null,phone_e164:row.phone_e164||null,avatar_url:row.avatar_url||null,status:row.status};}
+export function publicCustomer(row){return {id:row.public_id,customer_code:row.customer_code||row.public_id,display_name:row.display_name,email:row.email||null,phone_e164:row.phone_e164||null,avatar_url:row.avatar_url||null,birth_date:row.birth_date||null,status:row.status};}
 
 export async function allocateCustomerCode(client,tenantId){
   const r=await client.query(`UPDATE tenant_customer_identity_settings SET next_sequence=next_sequence+1,updated_at=now() WHERE tenant_id=$1 RETURNING id_prefix,next_sequence-1 AS sequence`,[tenantId]);

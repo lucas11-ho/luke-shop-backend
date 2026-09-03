@@ -148,7 +148,7 @@ export async function evaluateCustomerVip(db,{tenantId,storeId,customerId,actorT
 }
 
 export async function vipMemberDetail(db,{tenantId,storeId,customerRef}){
-  const customer=await db.query(`SELECT id,public_id,customer_code,display_name,email,phone_e164,status,created_at FROM customers WHERE tenant_id=$1 AND (public_id=$2 OR customer_code=$2)`,[tenantId,customerRef]);
+  const customer=await db.query(`SELECT id,public_id,customer_code,display_name,email,phone_e164,birth_date,status,created_at FROM customers WHERE tenant_id=$1 AND (public_id=$2 OR customer_code=$2)`,[tenantId,customerRef]);
   if(!customer.rowCount)throw errors.notFound('CUSTOMER_NOT_FOUND','Customer not found');
   const c=customer.rows[0],program=await getVipProgram(db,tenantId,storeId),status=await currentStatus(db,tenantId,storeId,c.id),metrics=program?await qualificationMetrics(db,{tenantId,storeId,customerId:c.id,program}):null,levels=await listVipLevels(db,tenantId,storeId,{activeOnly:true});
   const level=status?.level_id?levels.find(x=>x.internal_id===status.level_id)||null:null;

@@ -78,7 +78,7 @@ export async function customerAuthRoutes(app) {
     if (authOptions.turnstile.login_required) await assertCustomerTurnstile(app.config, request.body.turnstile_token, request, 'login');
     const email = normalizeEmail(request.body.email);
     const found = await app.db.query(
-      `SELECT id, public_id, customer_code, email, phone_e164, avatar_url, display_name, status, password_hash
+      `SELECT id, public_id, customer_code, email, phone_e164, avatar_url, birth_date, display_name, status, password_hash
          FROM customers WHERE tenant_id = $1 AND email = $2`,
       [request.tenant.id, email],
     );
@@ -157,17 +157,25 @@ export async function customerAuthRoutes(app) {
     preHandler: [app.requireCustomerAuth],
     schema: { body: { type: 'object', additionalProperties: false, minProperties: 1, properties: {
       display_name: { type: 'string', minLength: 1, maxLength: 100 },
-    turnstile_token: { type: 'string', minLength: 1, maxLength: 2048 },
+      birth_date: { type: ['string','null'], format: 'date' },
     } } },
   }, async (request) => app.db.transaction(async (client) => {
+    const current=await client.query('SELECT display_name,birth_date FROM customers WHERE tenant_id=$1 AND id=$2 FOR UPDATE',[request.auth.tenantId,request.auth.actorId]);
+    if(!current.rowCount)throw errors.notFound('CUSTOMER_NOT_FOUND','Customer not found');
+    const hasName=Object.prototype.hasOwnProperty.call(request.body,'display_name'),hasBirth=Object.prototype.hasOwnProperty.call(request.body,'birth_date');
+    const displayName=hasName?request.body.display_name.trim():current.rows[0].display_name;
+    const birthDate=hasBirth?request.body.birth_date:current.rows[0].birth_date;
+    if(birthDate&&birthDate< '1900-01-01')throw errors.badRequest('CUSTOMER_BIRTH_DATE_INVALID','Birth date must be on or after 1900-01-01');
+    if(birthDate&&birthDate>new Date().toISOString().slice(0,10))throw errors.badRequest('CUSTOMER_BIRTH_DATE_INVALID','Birth date cannot be in the future');
     const updated = await client.query(
-      `UPDATE customers SET display_name=$1,updated_at=now()
-        WHERE tenant_id=$2 AND id=$3 RETURNING public_id,customer_code,email,phone_e164,avatar_url,display_name,status`,
-      [request.body.display_name.trim(), request.auth.tenantId, request.auth.actorId],
+      `UPDATE customers SET display_name=$1,birth_date=$2,updated_at=now()
+        WHERE tenant_id=$3 AND id=$4 RETURNING public_id,customer_code,email,phone_e164,avatar_url,birth_date,display_name,status`,
+      [displayName,birthDate||null,request.auth.tenantId,request.auth.actorId],
     );
+    const changedFields=[];if(hasName)changedFields.push('display_name');if(hasBirth)changedFields.push('birth_date');
     await writeAudit(client, { tenantId: request.auth.tenantId, actorType: 'CUSTOMER', actorId: request.auth.actorId,
       action: 'customer.profile.update', targetType: 'customer', targetId: request.auth.actorId,
-      metadata: { changed_fields: ['display_name'] }, requestIp: request.ip, requestId: request.id });
+      metadata: { changed_fields: changedFields }, requestIp: request.ip, requestId: request.id });
     return { data: { customer: publicCustomer(updated.rows[0]) } };
   }));
 

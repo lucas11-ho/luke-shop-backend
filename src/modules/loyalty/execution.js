@@ -94,7 +94,7 @@ export async function expireDueVipEntitlements(client,{tenantId,storeId,customer
   return result.rowCount;
 }
 
-async function createEntitlement(client,{tenantId,storeId,customerId,levelId,benefitId,orderId,type,config,issuanceKey}){
+export async function createVipEntitlement(client,{tenantId,storeId,customerId,levelId,benefitId,orderId,type,config,issuanceKey}){
   const expires=type==='VOUCHER'?nowPlusDays(config.validity_days):null;const redeemCode=type==='VOUCHER'?publicId('VIPV').toUpperCase():null;
   const result=await client.query(`INSERT INTO vip_entitlements(id,public_id,tenant_id,store_id,customer_id,level_id,benefit_id,source_order_id,entitlement_type,status,redeem_code,issuance_key,payload_snapshot,expires_at)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'AVAILABLE',$10,$11,$12::jsonb,$13) ON CONFLICT (tenant_id,store_id,issuance_key) DO NOTHING RETURNING public_id`,[uuid(),publicId('vent'),tenantId,storeId,customerId,levelId,benefitId,orderId,type,redeemCode,issuanceKey,JSON.stringify(config||{}),expires]);
@@ -108,7 +108,7 @@ export async function processVipOrderCompletion(client,{tenantId,storeId,order})
     if(row.status!=='SNAPSHOT')continue;
     if(row.benefit_type==='CASHBACK'){cashback.push({...row,calculated:calculateVipCashback(row.config_snapshot,order)});continue;}
     if(row.benefit_type==='VOUCHER'||row.benefit_type==='GIFT'){
-      const type=row.benefit_type;const entitlement=await createEntitlement(client,{tenantId,storeId,customerId:order.customer_id,levelId:row.level_id,benefitId:row.benefit_id,orderId:order.id,type,config:json(row.config_snapshot),issuanceKey:`ORDER:${order.public_id}:BENEFIT:${row.benefit_public_id}`});
+      const type=row.benefit_type;const entitlement=await createVipEntitlement(client,{tenantId,storeId,customerId:order.customer_id,levelId:row.level_id,benefitId:row.benefit_id,orderId:order.id,type,config:json(row.config_snapshot),issuanceKey:`ORDER:${order.public_id}:BENEFIT:${row.benefit_public_id}`});
       await client.query(`UPDATE order_vip_benefits SET status='ISSUED',executed_at=COALESCE(executed_at,now()),reason=COALESCE(reason,$1) WHERE id=$2`,[entitlement?`${type} entitlement issued`:`${type} entitlement already issued`,row.id]);
       if(entitlement)issued++;
     }
