@@ -3,6 +3,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
   source-and-database:
     runs-on: ubuntu-latest
@@ -39,10 +42,18 @@ jobs:
           npm install fastify@5.12.1 --save-exact --no-audit --no-fund --registry=https://registry.npmjs.org/
           npm update fast-uri --no-audit --no-fund --registry=https://registry.npmjs.org/
           npm ls fastify fast-uri --all
-          echo 'LOCKFILE_GZIP_BASE64_BEGIN'
-          gzip -c package-lock.json | base64 -w0
-          echo
-          echo 'LOCKFILE_GZIP_BASE64_END'
+      - name: Commit regenerated dependency lock
+        shell: bash
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then
+            echo 'Dependency files already current.'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add package.json package-lock.json
+            git commit -m 'Patch Fastify and fast-uri security advisories'
+            git push origin HEAD:feat/vip-redemption-engine-v1
+          fi
       - run: npm run verify
       - name: VIP cashback redemption v1 source/security guard
         run: node scripts/v0.15.0-vip-cashback-redemption-v1-regression-test.mjs
