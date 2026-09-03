@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Luke Shop Backend v0.15.0 — Platform Sync, Localization & Address Policy Foundation",
-  "engines": {"node": ">=24 <27"},
+  "engines": {
+    "node": ">=24 <27"
+  },
   "scripts": {
     "dev": "node --watch --env-file=.env src/server.js",
     "start": "node src/server.js",
@@ -82,7 +84,7 @@
     "@fastify/cors": "11.3.0",
     "@fastify/helmet": "13.1.0",
     "@fastify/rate-limit": "11.1.0",
-    "fastify": "5.11.3",
+    "fastify": "5.12.1",
     "jose": "6.2.3",
     "pg": "8.22.0"
   }
