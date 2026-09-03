@@ -64,10 +64,10 @@ function issuanceDecision({benefit,member,entryHistory,policy,local}){
   return null;
 }
 
-export async function runRecurringVipEntitlements(client,{tenantId,storeId,now=new Date(),limit=5000}){
+export async function runRecurringVipEntitlements(client,{tenantId,storeId,now=new Date(),limit=5000,afterCustomerId=null}){
   const policy=await recurringVipIssuancePolicy(client,{tenantId,storeId});
   const bounded=Math.min(5000,Math.max(1,Number(limit)||5000));
-  const summary={enabled:policy.enabled,timezone:policy.timezone,processed_members:0,issued:0,already_issued:0,expired:0,by_frequency:{TIER_ENTRY:0,MONTHLY:0,ANNUAL:0,BIRTHDAY:0}};
+  const summary={enabled:policy.enabled,timezone:policy.timezone,processed_members:0,issued:0,already_issued:0,expired:0,by_frequency:{TIER_ENTRY:0,MONTHLY:0,ANNUAL:0,BIRTHDAY:0},last_customer_id:null,has_more:false};
   if(!policy.enabled)return summary;
   summary.expired=await expireDueVipEntitlements(client,{tenantId,storeId});
 
@@ -84,16 +84,19 @@ export async function runRecurringVipEntitlements(client,{tenantId,storeId,now=n
     FROM customer_vip_status cvs
     JOIN customers c ON c.id=cvs.customer_id AND c.tenant_id=cvs.tenant_id AND c.status='ACTIVE'
     JOIN vip_levels l ON l.id=cvs.level_id AND l.tenant_id=cvs.tenant_id AND l.store_id=cvs.store_id AND l.status='ACTIVE'
-    WHERE cvs.tenant_id=$1 AND cvs.store_id=$2
-    ORDER BY cvs.customer_id LIMIT $3`,[tenantId,storeId,bounded]);
+    WHERE cvs.tenant_id=$1 AND cvs.store_id=$2 AND ($3::uuid IS NULL OR cvs.customer_id>$3::uuid)
+    ORDER BY cvs.customer_id LIMIT $4`,[tenantId,storeId,afterCustomerId||null,bounded]);
   summary.processed_members=members.rowCount;
+  summary.last_customer_id=members.rows.at(-1)?.customer_id||null;
+  summary.has_more=members.rowCount===bounded&&!!summary.last_customer_id;
   if(!members.rowCount)return summary;
 
+  const memberIds=members.rows.map(row=>row.customer_id);
   const tierEntries=await client.query(`SELECT DISTINCT ON (h.customer_id,h.to_level_id) h.id,h.customer_id,h.to_level_id,h.created_at
     FROM vip_tier_history h
     JOIN customer_vip_status cvs ON cvs.tenant_id=h.tenant_id AND cvs.store_id=h.store_id AND cvs.customer_id=h.customer_id AND cvs.level_id=h.to_level_id
-    WHERE h.tenant_id=$1 AND h.store_id=$2 AND h.to_level_id IS NOT NULL
-    ORDER BY h.customer_id,h.to_level_id,h.id DESC`,[tenantId,storeId]);
+    WHERE h.tenant_id=$1 AND h.store_id=$2 AND h.to_level_id IS NOT NULL AND h.customer_id=ANY($3::uuid[])
+    ORDER BY h.customer_id,h.to_level_id,h.id DESC`,[tenantId,storeId,memberIds]);
   const entryHistory=new Map(tierEntries.rows.map(row=>[`${row.customer_id}:${row.to_level_id}`,row]));
   const local=localDateParts(now,policy.timezone);
 
