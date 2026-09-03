@@ -2,11 +2,17 @@ import { errors } from '../../core/errors.js';
 import { publicId, uuid } from '../../core/identifiers.js';
 
 const money=value=>Number(Number(value||0).toFixed(4));
-const POSITIVE_SOURCE_TYPES=['EARN','ADMIN_ADJUSTMENT','REDEMPTION_RESTORE'];
 
 async function lockCustomer(client,{tenantId,customerId}){
   const row=await client.query('SELECT id FROM customers WHERE tenant_id=$1 AND id=$2 FOR UPDATE',[tenantId,customerId]);
   if(!row.rowCount)throw errors.notFound('CUSTOMER_NOT_FOUND','Customer not found');
+}
+
+export async function vipCashbackRedemptionPolicy(client,{tenantId,storeId}){
+  const result=await client.query(`SELECT enabled,cashback_redemption_enabled,cashback_redemption_max_percent,cashback_redemption_min_amount
+    FROM vip_programs WHERE tenant_id=$1 AND store_id=$2`,[tenantId,storeId]);
+  const row=result.rows[0];
+  return {enabled:Boolean(row?.enabled&&row?.cashback_redemption_enabled),max_percent:Number(row?.cashback_redemption_max_percent??100),min_amount:money(row?.cashback_redemption_min_amount||0)};
 }
 
 export async function vipCashbackAvailableBalance(client,{tenantId,storeId,customerId,currency}){
@@ -34,7 +40,11 @@ async function spendableSources(client,{tenantId,storeId,customerId,currency}){
 export async function applyVipCashbackRedemption(client,{tenantId,storeId,customerId,orderId,orderPublicId,currency,requestedAmount,maxAmount}){
   const requested=money(requestedAmount);const payable=money(maxAmount);
   if(requested<=0)return null;
-  if(requested>payable)throw errors.badRequest('VIP_REDEMPTION_EXCEEDS_PAYABLE','VIP cashback redemption cannot exceed the server-calculated payable total');
+  const policy=await vipCashbackRedemptionPolicy(client,{tenantId,storeId});
+  if(!policy.enabled)throw errors.conflict('VIP_REDEMPTION_DISABLED','VIP cashback redemption is not enabled for this store');
+  if(requested<policy.min_amount)throw errors.badRequest('VIP_REDEMPTION_MINIMUM_NOT_MET',`VIP cashback redemption must be at least ${policy.min_amount.toFixed(2)}`);
+  const policyCap=money(payable*Math.max(0,Math.min(100,policy.max_percent))/100);const serverMax=money(Math.min(payable,policyCap));
+  if(requested>serverMax)throw errors.badRequest('VIP_REDEMPTION_EXCEEDS_LIMIT','VIP cashback redemption exceeds the server-authorized checkout limit');
   await lockCustomer(client,{tenantId,customerId});
   const balance=await vipCashbackAvailableBalance(client,{tenantId,storeId,customerId,currency});
   if(requested>balance)throw errors.conflict('VIP_REWARD_BALANCE_INSUFFICIENT','VIP cashback balance changed; refresh rewards and try again');
@@ -44,12 +54,12 @@ export async function applyVipCashbackRedemption(client,{tenantId,storeId,custom
   if(remaining>0)throw errors.conflict('VIP_REWARD_SOURCES_INSUFFICIENT','VIP reward sources changed; refresh rewards and try again');
   const ledgerId=uuid(),ledgerPublicId=publicId('vrl'),redemptionId=uuid(),redemptionPublicId=publicId('vrd');
   await client.query(`INSERT INTO vip_reward_ledger(id,public_id,tenant_id,store_id,customer_id,order_id,entry_type,amount,currency,source_key,description,metadata)
-    VALUES($1,$2,$3,$4,$5,$6,'REDEEM',$7,$8,$9,'VIP cashback redeemed at checkout',$10::jsonb)`,[ledgerId,ledgerPublicId,tenantId,storeId,customerId,orderId,-requested,currency,`ORDER:${orderPublicId}:CASHBACK_REDEEM`,JSON.stringify({order_id:orderPublicId,redemption_id:redemptionPublicId})]);
+    VALUES($1,$2,$3,$4,$5,$6,'REDEEM',$7,$8,$9,'VIP cashback redeemed at checkout',$10::jsonb)`,[ledgerId,ledgerPublicId,tenantId,storeId,customerId,orderId,-requested,currency,`ORDER:${orderPublicId}:CASHBACK_REDEEM`,JSON.stringify({order_id:orderPublicId,redemption_id:redemptionPublicId,max_authorized:serverMax})]);
   await client.query(`INSERT INTO vip_reward_redemptions(id,public_id,tenant_id,store_id,customer_id,order_id,ledger_entry_id,amount,currency)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[redemptionId,redemptionPublicId,tenantId,storeId,customerId,orderId,ledgerId,requested,currency]);
   for(const allocation of allocations)await client.query(`INSERT INTO vip_reward_redemption_allocations(id,tenant_id,store_id,redemption_id,source_ledger_entry_id,amount)
     VALUES($1,$2,$3,$4,$5,$6)`,[uuid(),tenantId,storeId,redemptionId,allocation.source.id,allocation.amount]);
-  return {id:redemptionPublicId,internal_id:redemptionId,ledger_entry_id:ledgerId,amount:requested,currency,balance_before:balance,balance_after:money(balance-requested),allocations:allocations.map(item=>({source_entry_id:item.source.public_id,amount:item.amount,expires_at:item.source.expires_at||null}))};
+  return {id:redemptionPublicId,internal_id:redemptionId,ledger_entry_id:ledgerId,amount:requested,currency,balance_before:balance,balance_after:money(balance-requested),max_authorized:serverMax,allocations:allocations.map(item=>({source_entry_id:item.source.public_id,amount:item.amount,expires_at:item.source.expires_at||null}))};
 }
 
 export async function restoreVipCashbackRedemptionForOrder(client,{tenantId,storeId,orderId,restorationKey,reason}){
