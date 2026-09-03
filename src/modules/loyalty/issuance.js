@@ -80,7 +80,7 @@ export async function runRecurringVipEntitlements(client,{tenantId,storeId,now=n
   const benefitsByLevel=new Map();
   for(const benefit of benefits.rows){const list=benefitsByLevel.get(benefit.level_id)||[];list.push(benefit);benefitsByLevel.set(benefit.level_id,list);}
 
-  const members=await client.query(`SELECT cvs.customer_id,c.public_id AS customer_public_id,c.birth_date,cvs.level_id
+  const members=await client.query(`SELECT cvs.customer_id,c.public_id AS customer_public_id,c.birth_date::text AS birth_date,cvs.level_id
     FROM customer_vip_status cvs
     JOIN customers c ON c.id=cvs.customer_id AND c.tenant_id=cvs.tenant_id AND c.status='ACTIVE'
     JOIN vip_levels l ON l.id=cvs.level_id AND l.tenant_id=cvs.tenant_id AND l.store_id=cvs.store_id AND l.status='ACTIVE'
