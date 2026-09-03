@@ -2,6 +2,17 @@
 -- Additive migration. Migrations 001-032 remain immutable.
 -- Redemption is server-authoritative and allocated to immutable positive reward-ledger sources.
 
+ALTER TABLE vip_programs
+  ADD COLUMN IF NOT EXISTS cashback_redemption_enabled boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS cashback_redemption_max_percent numeric(5,2) NOT NULL DEFAULT 100,
+  ADD COLUMN IF NOT EXISTS cashback_redemption_min_amount numeric(18,4) NOT NULL DEFAULT 0;
+ALTER TABLE vip_programs DROP CONSTRAINT IF EXISTS vip_programs_cashback_redemption_max_percent_check;
+ALTER TABLE vip_programs ADD CONSTRAINT vip_programs_cashback_redemption_max_percent_check
+  CHECK (cashback_redemption_max_percent >= 0 AND cashback_redemption_max_percent <= 100);
+ALTER TABLE vip_programs DROP CONSTRAINT IF EXISTS vip_programs_cashback_redemption_min_amount_check;
+ALTER TABLE vip_programs ADD CONSTRAINT vip_programs_cashback_redemption_min_amount_check
+  CHECK (cashback_redemption_min_amount >= 0);
+
 ALTER TABLE order_adjustments DROP CONSTRAINT IF EXISTS order_adjustments_adjustment_type_check;
 ALTER TABLE order_adjustments
   ADD CONSTRAINT order_adjustments_adjustment_type_check
@@ -21,9 +32,6 @@ ALTER TABLE vip_reward_ledger
     OR (entry_type IN ('REDEEM','EXPIRE','REVERSAL','REFUND_CLAWBACK') AND amount < 0)
   );
 
--- Zero-value financial refunds are allowed only so a fully reward-covered order can
--- pass through the existing audited refund lifecycle. Route logic enforces that a
--- zero-value refund is valid only when the order has an applied VIP redemption.
 ALTER TABLE payment_refunds DROP CONSTRAINT IF EXISTS payment_refunds_amount_check;
 ALTER TABLE payment_refunds
   ADD CONSTRAINT payment_refunds_amount_check CHECK (amount >= 0);
