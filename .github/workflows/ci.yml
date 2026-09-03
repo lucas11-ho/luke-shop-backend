@@ -33,6 +33,16 @@ jobs:
           else
             npm install --no-audit --no-fund --registry=https://registry.npmjs.org/
           fi
+      - name: Temporary security lockfile refresh
+        shell: bash
+        run: |
+          npm install fastify@5.12.1 --save-exact --no-audit --no-fund --registry=https://registry.npmjs.org/
+          npm update fast-uri --no-audit --no-fund --registry=https://registry.npmjs.org/
+          npm ls fastify fast-uri --all
+          echo 'LOCKFILE_GZIP_BASE64_BEGIN'
+          gzip -c package-lock.json | base64 -w0
+          echo
+          echo 'LOCKFILE_GZIP_BASE64_END'
       - run: npm run verify
       - name: VIP cashback redemption v1 source/security guard
         run: node scripts/v0.15.0-vip-cashback-redemption-v1-regression-test.mjs
