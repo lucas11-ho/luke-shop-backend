@@ -12,7 +12,8 @@ export async function vipCashbackRedemptionPolicy(client,{tenantId,storeId}){
   const result=await client.query(`SELECT enabled,cashback_redemption_enabled,cashback_redemption_max_percent,cashback_redemption_min_amount
     FROM vip_programs WHERE tenant_id=$1 AND store_id=$2`,[tenantId,storeId]);
   const row=result.rows[0];
-  return {enabled:Boolean(row?.enabled&&row?.cashback_redemption_enabled),max_percent:Number(row?.cashback_redemption_max_percent??100),min_amount:money(row?.cashback_redemption_min_amount||0)};
+  const programEnabled=Boolean(row?.enabled);const configured=Boolean(row?.cashback_redemption_enabled);
+  return {program_enabled:programEnabled,cashback_redemption_enabled:configured,enabled:Boolean(programEnabled&&configured),max_percent:Number(row?.cashback_redemption_max_percent??100),min_amount:money(row?.cashback_redemption_min_amount||0)};
 }
 
 export async function vipCashbackAvailableBalance(client,{tenantId,storeId,customerId,currency}){
