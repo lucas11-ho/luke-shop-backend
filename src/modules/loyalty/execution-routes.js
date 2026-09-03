@@ -64,40 +64,19 @@ export async function loyaltyExecutionRoutes(app){
 
   app.post('/v1/merchant/vip/issuance/run',{preHandler:manageGuard(app),schema:{body:{type:'object',additionalProperties:false,properties:{limit:{type:'integer',minimum:1,maximum:5000}}}}},async request=>{
     const store=await merchantStore(app,request),tenantId=request.auth.tenantId;let summary;
-    await app.db.transaction(async client=>{summary=await runRecurringVipEntitlements(client,{tenantId,storeId:store.id,limit:request.body?.limit||5000});await writeAudit(client,{tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'vip.recurring_entitlements.run',targetType:'store',targetId:store.id,metadata:summary,requestIp:request.ip,requestId:request.id});});
+    await app.db.transaction(async client=>{
+      summary=await runRecurringVipEntitlements(client,{tenantId,storeId:store.id,limit:request.body?.limit||5000});
+      await writeAudit(client,{tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'vip.recurring_entitlements.run',targetType:'store',targetId:store.id,metadata:summary,requestIp:request.ip,requestId:request.id});
+    });
     return {data:{summary}};
   });
 
-  app.post('/v1/merchant/vip/members/:customerRef/entitlements/issue',{preHandler:manageGuard(app),schema:{body:{type:'object',additionalProperties:false,required:['benefit_id','request_key','reason'],properties:{benefit_id:{type:'string',minLength:1,maxLength:120},request_key:{type:'string',minLength:8,maxLength:120,pattern:'^[A-Za-z0-9._:-]+
-    const store=await merchantStore(app,request),customer=await customerByRef(app.db,request.auth.tenantId,request.params.customerRef);
-    const rewards=await app.db.transaction(client=>vipRewardAccount(client,{tenantId:request.auth.tenantId,storeId:store.id,customerId:customer.id}));
-    return {data:{customer:{id:customer.public_id,customer_code:customer.customer_code,display_name:customer.display_name},rewards}};
-  });
-
-  app.post('/v1/merchant/vip/members/:customerRef/rewards/adjust',{preHandler:manageGuard(app),schema:{body:{type:'object',additionalProperties:false,required:['amount','reason'],properties:{amount:{type:'number',minimum:-1000000,maximum:1000000},reason:{type:'string',minLength:3,maxLength:1000},expires_at:{type:['string','null'],format:'date-time'}}}}},async request=>{
-    const store=await merchantStore(app,request),customer=await customerByRef(app.db,request.auth.tenantId,request.params.customerRef);let rewards;
-    await app.db.transaction(async client=>{
-      rewards=await adjustVipReward(client,{tenantId:request.auth.tenantId,storeId:store.id,customerId:customer.id,amount:request.body.amount,reason:request.body.reason.trim(),expiresAt:request.body.expires_at?new Date(request.body.expires_at):null,actorId:request.auth.actorId});
-      await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'vip.reward.adjust',targetType:'customer',targetId:customer.id,metadata:{amount:Number(request.body.amount),reason:request.body.reason.trim(),expires_at:request.body.expires_at||null},requestIp:request.ip,requestId:request.id});
-    });
-    return {data:{customer:{id:customer.public_id,customer_code:customer.customer_code,display_name:customer.display_name},rewards}};
-  });
-
-  app.post('/v1/merchant/vip/rewards/expire',{preHandler:manageGuard(app)},async request=>{
-    const store=await merchantStore(app,request);let rewards=0,entitlements=0;
-    await app.db.transaction(async client=>{rewards=await expireDueVipRewards(client,{tenantId:request.auth.tenantId,storeId:store.id});entitlements=await expireDueVipEntitlements(client,{tenantId:request.auth.tenantId,storeId:store.id});});
-    return {data:{expired_rewards:rewards,expired_entitlements:entitlements}};
-  });
-
-  app.get('/v1/customer/vip/rewards',{preHandler:[app.requireCustomerAuth]},async request=>{
-    const store=await resolveStore(app.db,request.auth.tenantId,storeHeader(request));
-    const result=await app.db.transaction(async client=>({rewards:await vipRewardAccount(client,{tenantId:request.auth.tenantId,storeId:store.id,customerId:request.auth.actorId,ledgerLimit:50}),redemption_policy:await vipCashbackRedemptionPolicy(client,{tenantId:request.auth.tenantId,storeId:store.id})}));
-    return {data:result};
-  });
-}
-},reason:{type:'string',minLength:3,maxLength:1000}}}}},async request=>{
+  app.post('/v1/merchant/vip/members/:customerRef/entitlements/issue',{preHandler:manageGuard(app),schema:{body:{type:'object',additionalProperties:false,required:['benefit_id','request_key','reason'],properties:{benefit_id:{type:'string',minLength:1,maxLength:120},request_key:{type:'string',minLength:8,maxLength:120},reason:{type:'string',minLength:3,maxLength:1000}}}}},async request=>{
     const store=await merchantStore(app,request),tenantId=request.auth.tenantId,customer=await customerByRef(app.db,tenantId,request.params.customerRef);let result;
-    await app.db.transaction(async client=>{result=await issueManualVipEntitlement(client,{tenantId,storeId:store.id,customerId:customer.id,benefitRef:request.body.benefit_id,requestKey:request.body.request_key,reason:request.body.reason});await writeAudit(client,{tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'vip.manual_entitlement.issue',targetType:'customer',targetId:customer.id,metadata:{benefit_id:request.body.benefit_id,request_key:request.body.request_key,reason:request.body.reason,created:result.created},requestIp:request.ip,requestId:request.id});});
+    await app.db.transaction(async client=>{
+      result=await issueManualVipEntitlement(client,{tenantId,storeId:store.id,customerId:customer.id,benefitRef:request.body.benefit_id,requestKey:request.body.request_key,reason:request.body.reason});
+      await writeAudit(client,{tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'vip.manual_entitlement.issue',targetType:'customer',targetId:customer.id,metadata:{benefit_id:request.body.benefit_id,request_key:request.body.request_key,reason:request.body.reason,created:result.created},requestIp:request.ip,requestId:request.id});
+    });
     return {data:{customer:{id:customer.public_id,customer_code:customer.customer_code,display_name:customer.display_name},...result}};
   });
 
