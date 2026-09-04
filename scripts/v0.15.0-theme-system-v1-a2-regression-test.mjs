@@ -12,8 +12,8 @@ const pass=(ok,message)=>{if(!ok)throw new Error(`FAIL ${message}`);count++;cons
 
 pass(service.includes('theme_package: normalizeThemeSelection(raw.theme_package)'), 'Customer theme package is versioned in CX v4 config');
 pass(service.includes('applyExperienceThemePackage'), 'Customer theme selection uses Store Designer draft workflow');
-pass(service.includes("app:'CUSTOMER_WEB', publishedOnly:true"), 'Draft and publish require published Customer Web theme versions');
-pass(service.includes("publishedOnly:false"), 'Rollback can preserve an immutable retired theme version');
+pass(service.includes("resolveThemePackage(client, selection, { app:'CUSTOMER_WEB', publishedOnly })")&&service.match(/validateCustomerTheme\(client, [^\n]+\{ publishedOnly:true \}\)/g)?.length>=3, 'Draft apply and publish require published Customer Web theme versions');
+pass(service.includes('validateCustomerTheme(client, normalized.theme_package, { publishedOnly:false })'), 'Rollback can preserve an immutable retired theme version');
 pass(routes.includes("'/v1/merchant/customer-experience/apply-theme'"), 'Merchant Customer theme apply endpoint exists');
 pass(routes.includes("'/v1/merchant/staff-experience'"), 'Merchant Staff theme settings endpoint exists');
 pass(routes.includes("'/v1/merchant/staff-experience/runtime'"), 'Authenticated Staff runtime endpoint exists');
