@@ -38,6 +38,7 @@ import { customerCommerceRoutes } from './modules/commerce/customer-routes.js';
 import { merchantLoyaltyRoutes } from './modules/loyalty/merchant-routes.js';
 import { customerLoyaltyRoutes } from './modules/loyalty/customer-routes.js';
 import { loyaltyExecutionRoutes } from './modules/loyalty/execution-routes.js';
+import { loyaltyCronRoutes } from './modules/loyalty/cron-routes.js';
 import { customerServiceMerchantRoutes } from './modules/integrations/customer-service/merchant-routes.js';
 import { customerServiceRoutes } from './modules/integrations/customer-service/service-routes.js';
 import { customerSupportContextRoutes } from './modules/integrations/customer-service/customer-context-routes.js';
@@ -164,6 +165,7 @@ export async function buildApp(config) {
   await app.register(merchantLoyaltyRoutes);
   await app.register(customerLoyaltyRoutes);
   await app.register(loyaltyExecutionRoutes);
+  await app.register(loyaltyCronRoutes);
   await app.register(customerCommerceRoutes);
   await app.register(customerPaymentGatewayRoutes);
   await app.register(customerSupportContextRoutes);
