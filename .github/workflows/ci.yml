@@ -66,6 +66,8 @@ jobs:
         run: node --env-file=.env.ci scripts/vip-cashback-redemption-lifecycle-test.mjs
       - name: VIP recurring voucher/gift issuance lifecycle
         run: node --env-file=.env.ci scripts/vip-recurring-entitlements-lifecycle-test.mjs
+      - name: VIP loyalty analytics lifecycle
+        run: node --env-file=.env.ci scripts/vip-loyalty-analytics-lifecycle-test.mjs
       - name: PostgreSQL tenant-isolation smoke test
         run: npm run test:db
       - name: Authentication lifecycle
