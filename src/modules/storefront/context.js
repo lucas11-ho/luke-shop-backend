@@ -4,6 +4,7 @@ import { normalizeSlug } from '../../core/identifiers.js';
 import { getTenantBySlug } from '../tenants/service.js';
 import { resolveStore, resolveStoreBySlug } from '../catalog/service.js';
 import { resolveStatusVisualPack } from '../customer-experience/service.js';
+import { publicThemePackage, resolveThemePackage } from '../themes/selection-service.js';
 
 export function normalizeHostname(value) {
   const host = String(value || '').trim().toLowerCase().replace(/\.$/, '').split(':')[0];
@@ -77,7 +78,10 @@ export async function storefrontPayload(db, { tenant, store, source = 'HEADER', 
   const capRow = profileResult.rows[0] || {};
   const capabilities = { ...(capRow.plan || {}), ...(capRow.overrides || {}) };
   const rawExperience = experienceResult.rows[0]?.config || null;
-  const statusVisualPack = rawExperience ? await resolveStatusVisualPack(db, rawExperience) : null;
+  const [statusVisualPack, resolvedThemePackage] = rawExperience ? await Promise.all([
+    resolveStatusVisualPack(db, rawExperience),
+    rawExperience.theme_package ? resolveThemePackage(db, rawExperience.theme_package, { app:'CUSTOMER_WEB', publishedOnly:false }) : Promise.resolve(null),
+  ]) : [null, null];
   const publicExperience = rawExperience ? {
     ...rawExperience,
     status_visuals: statusVisualPack ? { pack_key: statusVisualPack.key, name: statusVisualPack.name, icons: statusVisualPack.icons || {}, settings: statusVisualPack.settings || {} } : null,
@@ -94,6 +98,7 @@ export async function storefrontPayload(db, { tenant, store, source = 'HEADER', 
     channels: { customer_web: capabilities.customer_web !== false, customer_mobile: capabilities.customer_mobile !== false },
     experience: publicExperience,
     experience_version: experienceResult.rows[0]?.version || null,
+    theme_package: publicThemePackage(resolvedThemePackage),
     customer_service: {
       enabled: Boolean(tenant.customer_service?.enabled), provider: tenant.customer_service?.provider || null,
       placement: tenant.customer_service?.placement || {}, label: tenant.customer_service?.label || 'Customer Support',
