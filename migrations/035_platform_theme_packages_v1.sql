@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS platform_theme_packages (
   published_at timestamptz,
   CONSTRAINT platform_theme_packages_key_version_unique UNIQUE(key,version),
   CONSTRAINT platform_theme_packages_key_check CHECK (key ~ '^[A-Z][A-Z0-9_]{1,79}$'),
-  CONSTRAINT platform_theme_packages_version_check CHECK (version ~ '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$'),
+  CONSTRAINT platform_theme_packages_version_check CHECK (version ~ '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'),
   CONSTRAINT platform_theme_packages_status_check CHECK (status IN ('DRAFT','PUBLISHED','RETIRED')),
   CONSTRAINT platform_theme_packages_supported_apps_check CHECK (jsonb_typeof(supported_apps)='array'),
   CONSTRAINT platform_theme_packages_manifest_check CHECK (jsonb_typeof(manifest)='object'),
