@@ -1,4 +1,5 @@
 import { errors } from '../../core/errors.js';
+import { resolveThemeComponents, validateThemeComponentOverrides } from './service.js';
 
 const APP_SET = new Set(['CUSTOMER_WEB','STAFF_WEB']);
 const KEY = /^[A-Z][A-Z0-9_]{1,79}$/;
@@ -55,33 +56,35 @@ export function publicThemePackage(row) {
 
 export async function getStaffThemeSelection(db, { tenantId, storeId }) {
   const result = await db.query(
-    `SELECT theme_key,theme_version,updated_at
+    `SELECT theme_key,theme_version,component_overrides,updated_at
        FROM store_staff_theme_settings
       WHERE tenant_id=$1 AND store_id=$2`,
     [tenantId, storeId],
   );
   if (!result.rowCount || !result.rows[0].theme_key || !result.rows[0].theme_version) {
-    return { selection:null, theme:null, updated_at:result.rows[0]?.updated_at || null };
+    return { selection:null, theme:null, component_overrides:{}, effective_components:{}, updated_at:result.rows[0]?.updated_at || null };
   }
   const selection = { key:result.rows[0].theme_key, version:result.rows[0].theme_version };
-  const theme = await resolveThemePackage(db, selection, { app:'STAFF_WEB', publishedOnly:false });
-  return { selection, theme:publicThemePackage(theme), updated_at:result.rows[0].updated_at };
+  const themeRow = await resolveThemePackage(db, selection, { app:'STAFF_WEB', publishedOnly:false });
+  const overrides = validateThemeComponentOverrides(themeRow,'STAFF_WEB',result.rows[0].component_overrides || {});
+  return { selection, theme:publicThemePackage(themeRow), component_overrides:overrides, effective_components:resolveThemeComponents(themeRow,'STAFF_WEB',overrides), updated_at:result.rows[0].updated_at };
 }
 
-export async function setStaffThemeSelection(client, { tenantId, storeId, actorId, selection }) {
+export async function setStaffThemeSelection(client, { tenantId, storeId, actorId, selection, componentOverrides = {} }) {
   const normalized = normalizeThemeSelection(selection);
   if (!normalized) {
     await client.query('DELETE FROM store_staff_theme_settings WHERE tenant_id=$1 AND store_id=$2', [tenantId, storeId]);
-    return { selection:null, theme:null, updated_at:null };
+    return { selection:null, theme:null, component_overrides:{}, effective_components:{}, updated_at:null };
   }
-  const theme = await resolveThemePackage(client, normalized, { app:'STAFF_WEB', publishedOnly:true });
+  const themeRow = await resolveThemePackage(client, normalized, { app:'STAFF_WEB', publishedOnly:true });
+  const overrides = validateThemeComponentOverrides(themeRow,'STAFF_WEB',componentOverrides);
   const saved = await client.query(
-    `INSERT INTO store_staff_theme_settings(tenant_id,store_id,theme_key,theme_version,updated_by,updated_at)
-     VALUES($1,$2,$3,$4,$5,now())
+    `INSERT INTO store_staff_theme_settings(tenant_id,store_id,theme_key,theme_version,component_overrides,updated_by,updated_at)
+     VALUES($1,$2,$3,$4,$5::jsonb,$6,now())
      ON CONFLICT(tenant_id,store_id) DO UPDATE
-       SET theme_key=EXCLUDED.theme_key,theme_version=EXCLUDED.theme_version,updated_by=EXCLUDED.updated_by,updated_at=now()
+       SET theme_key=EXCLUDED.theme_key,theme_version=EXCLUDED.theme_version,component_overrides=EXCLUDED.component_overrides,updated_by=EXCLUDED.updated_by,updated_at=now()
      RETURNING updated_at`,
-    [tenantId, storeId, normalized.key, normalized.version, actorId],
+    [tenantId, storeId, normalized.key, normalized.version, JSON.stringify(overrides), actorId],
   );
-  return { selection:normalized, theme:publicThemePackage(theme), updated_at:saved.rows[0].updated_at };
+  return { selection:normalized, theme:publicThemePackage(themeRow), component_overrides:overrides, effective_components:resolveThemeComponents(themeRow,'STAFF_WEB',overrides), updated_at:saved.rows[0].updated_at };
 }
