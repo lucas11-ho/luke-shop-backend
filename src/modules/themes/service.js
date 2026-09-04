@@ -2,6 +2,19 @@ import { errors } from '../../core/errors.js';
 
 export const THEME_APPS = Object.freeze(['CUSTOMER_WEB','STAFF_WEB']);
 export const THEME_STATUS = Object.freeze(['DRAFT','PUBLISHED','RETIRED']);
+export const THEME_COMPONENT_CAPABILITIES = Object.freeze({
+  CUSTOMER_WEB:Object.freeze({
+    product_card:Object.freeze(['standard','minimal','soft','bold','technical','compact','quick_add','editorial']),
+    header:Object.freeze(['logo_left','centered_logo','search_first','compact','transparent']),
+    hero:Object.freeze(['split','full_width','slider','featured_product','video','minimal']),
+    categories:Object.freeze(['cards','circles','image_tiles','chips','horizontal']),
+    product_gallery:Object.freeze(['thumbnails','stacked']),
+    buy_box:Object.freeze(['sticky','standard']),
+  }),
+  STAFF_WEB:Object.freeze({
+    workspace_card:Object.freeze(['standard','flat','outlined','compact']),
+  }),
+});
 
 const APP_SET = new Set(THEME_APPS);
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -51,6 +64,17 @@ function safeHttps(value) {
   }
 }
 
+export function normalizeThemeComponentOverrides(raw = {}) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [key, value] of Object.entries(raw).slice(0, 24)) {
+    const safeKey = safeIdentifier(key);
+    const safeValue = safeIdentifier(value);
+    if (safeKey && safeValue) out[safeKey] = safeValue;
+  }
+  return out;
+}
+
 function normalizeVariantMap(raw = {}) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   const out = {};
@@ -62,7 +86,55 @@ function normalizeVariantMap(raw = {}) {
   return out;
 }
 
-export function normalizeThemeManifest(raw = {}) {
+function normalizeComponentOptions(raw = {}, supportedApps = THEME_APPS) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const capabilities = {};
+  for (const app of supportedApps) Object.assign(capabilities, THEME_COMPONENT_CAPABILITIES[app] || {});
+  const out = {};
+  for (const [rawKey, values] of Object.entries(raw).slice(0, 24)) {
+    const key = safeIdentifier(rawKey);
+    const allowed = capabilities[key];
+    if (!key || !allowed || !Array.isArray(values)) continue;
+    const variants = [...new Set(values.map(value=>safeIdentifier(value)).filter(value=>value && allowed.includes(value)))].slice(0, 16);
+    if (variants.length) out[key] = variants;
+  }
+  return out;
+}
+
+export function validateThemeComponentOverrides(theme, app, raw = {}) {
+  const normalizedApp = String(app || '').trim().toUpperCase();
+  const capabilities = THEME_COMPONENT_CAPABILITIES[normalizedApp];
+  if (!capabilities) throw errors.badRequest('THEME_APP_INVALID', 'Unsupported theme application');
+  const overrides = normalizeThemeComponentOverrides(raw);
+  if (!Object.keys(overrides).length) return {};
+  if (!theme) throw errors.badRequest('THEME_COMPONENT_THEME_REQUIRED', 'Choose a theme package before changing component variants');
+  const advertised = theme.manifest?.component_options || {};
+  for (const [key, variant] of Object.entries(overrides)) {
+    const rendererAllowed = capabilities[key];
+    const packageAllowed = Array.isArray(advertised[key]) ? advertised[key] : [];
+    if (!rendererAllowed || !rendererAllowed.includes(variant) || !packageAllowed.includes(variant)) {
+      throw errors.badRequest('THEME_COMPONENT_VARIANT_NOT_ALLOWED', `Component variant ${key}:${variant} is not allowed by the selected theme package`);
+    }
+  }
+  return overrides;
+}
+
+export function resolveThemeComponents(theme, app, rawOverrides = {}) {
+  const normalizedApp = String(app || '').trim().toUpperCase();
+  const capabilities = THEME_COMPONENT_CAPABILITIES[normalizedApp] || {};
+  const defaults = theme?.manifest?.components || {};
+  const overrides = normalizeThemeComponentOverrides(rawOverrides);
+  const effective = {};
+  for (const [key, allowed] of Object.entries(capabilities)) {
+    const packageDefault = safeIdentifier(defaults[key]);
+    if (packageDefault && allowed.includes(packageDefault)) effective[key] = packageDefault;
+    const override = overrides[key];
+    if (override && allowed.includes(override)) effective[key] = override;
+  }
+  return effective;
+}
+
+export function normalizeThemeManifest(raw = {}, { supportedApps = THEME_APPS } = {}) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw errors.badRequest('THEME_MANIFEST_INVALID', 'Theme manifest must be an object');
   }
@@ -118,6 +190,7 @@ export function normalizeThemeManifest(raw = {}) {
       container: pick(navigation.container, ['edge','floating','glass'], 'edge'),
     },
     components: normalizeVariantMap(raw.components),
+    component_options: normalizeComponentOptions(raw.component_options, supportedApps),
   };
 }
 
@@ -142,7 +215,7 @@ export function normalizeThemePackageInput(raw = {}) {
     name,
     description: cleanText(raw.description, 1000),
     supported_apps: supportedApps,
-    manifest: normalizeThemeManifest(raw.manifest || {}),
+    manifest: normalizeThemeManifest(raw.manifest || {}, { supportedApps }),
     preview: {
       summary: cleanText(preview.summary, 360),
       figma_url: safeHttps(preview.figma_url),
