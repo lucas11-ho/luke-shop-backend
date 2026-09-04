@@ -1,6 +1,7 @@
 import { errors } from '../../core/errors.js';
 import { publicId, uuid } from '../../core/identifiers.js';
 import { normalizeExperienceExtensions, loadTenantExperiencePolicy, applyTenantExperiencePolicy } from './extension-normalizer.js';
+import { normalizeThemeSelection, resolveThemePackage } from '../themes/selection-service.js';
 
 const NAV = new Set(['home','explore','cart','orders','profile']);
 const SECTION_TYPES = new Set(['announcement_bar','hero','hero_slider','categories','featured_products','promotion_banner','new_arrivals']);
@@ -104,6 +105,7 @@ export function normalizeExperienceConfig(input = {}) {
   return {
     schema_version: 4,
     ...normalizeExperienceExtensions(raw),
+    theme_package: normalizeThemeSelection(raw.theme_package),
     status_visual_pack: oneOf(String(raw.status_visual_pack || 'AUTO').toUpperCase(), STATUS_VISUAL_PACKS, 'AUTO'),
     theme: {
       preset: text(theme.preset || THEME_DEFAULT.preset, 60),
@@ -219,12 +221,18 @@ export async function loadExperienceCatalog(db) {
   return { templates: templates.rows, typography_presets: typography.rows, status_visual_packs: [{ key:'AUTO',name:'Automatic',business_type:'TEMPLATE',status:'ACTIVE',icons:{},settings:{} }, ...statusPacks.rows] };
 }
 
+async function validateCustomerTheme(client, selection, { publishedOnly = true } = {}) {
+  if (!selection) return null;
+  return resolveThemePackage(client, selection, { app:'CUSTOMER_WEB', publishedOnly });
+}
+
 export async function updateDraft(client, { tenantId, storeId, actorId, config, templateKey = undefined, templateCustomized = undefined }) {
   const current = await client.query(
     `SELECT id,version,template_key,base_template_key,template_customized FROM storefront_experience_versions WHERE tenant_id=$1 AND store_id=$2 AND state='DRAFT' FOR UPDATE`,
     [tenantId, storeId],
   );
   const normalized = applyTenantExperiencePolicy(normalizeExperienceConfig(config), await loadTenantExperiencePolicy(client, tenantId));
+  await validateCustomerTheme(client, normalized.theme_package, { publishedOnly:true });
   if (current.rowCount) {
     const selectedTemplate = templateKey === undefined ? current.rows[0].template_key : templateKey;
     const baseTemplate = templateKey === undefined ? (current.rows[0].base_template_key || current.rows[0].template_key) : templateKey;
@@ -262,12 +270,21 @@ export async function applyExperienceTemplate(client, { tenantId, storeId, actor
   return updateDraft(client,{ tenantId, storeId, actorId, config:next, templateKey, templateCustomized:mode !== 'full' });
 }
 
+export async function applyExperienceThemePackage(client, { tenantId, storeId, actorId, selection }) {
+  const loaded = await loadExperience(client, tenantId, storeId);
+  const current = loaded.draft?.config || loaded.published?.config || {};
+  const normalizedSelection = normalizeThemeSelection(selection);
+  await validateCustomerTheme(client, normalizedSelection, { publishedOnly:true });
+  return updateDraft(client, { tenantId, storeId, actorId, config:{ ...current, theme_package:normalizedSelection } });
+}
+
 export async function publishDraft(client, { tenantId, storeId, actorId }) {
   const draft = await client.query(
     `SELECT * FROM storefront_experience_versions WHERE tenant_id=$1 AND store_id=$2 AND state='DRAFT' FOR UPDATE`, [tenantId, storeId],
   );
   if (!draft.rowCount) throw errors.conflict('CUSTOMER_EXPERIENCE_DRAFT_REQUIRED', 'Save a draft before publishing');
   const normalized = normalizeExperienceConfig(draft.rows[0].config);
+  await validateCustomerTheme(client, normalized.theme_package, { publishedOnly:true });
   await client.query(`UPDATE storefront_experience_versions SET state='ARCHIVED',updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND state='PUBLISHED'`, [tenantId, storeId]);
   const published = await client.query(
     `UPDATE storefront_experience_versions SET state='PUBLISHED',config=$1::jsonb,schema_version=4,published_by=$2,published_at=now(),updated_at=now()
@@ -289,6 +306,7 @@ export async function rollbackExperience(client, { tenantId, storeId, actorId, v
   );
   if (!source.rowCount) throw errors.notFound('CUSTOMER_EXPERIENCE_VERSION_NOT_FOUND', 'Published experience version not found');
   const normalized = normalizeExperienceConfig(source.rows[0].config);
+  await validateCustomerTheme(client, normalized.theme_package, { publishedOnly:false });
   await client.query(`UPDATE storefront_experience_versions SET state='ARCHIVED',updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND state IN ('PUBLISHED','DRAFT')`, [tenantId, storeId]);
   const max = await client.query('SELECT COALESCE(MAX(version),0)::int AS v FROM storefront_experience_versions WHERE tenant_id=$1 AND store_id=$2', [tenantId, storeId]);
   const publishedVersion = max.rows[0].v + 1;

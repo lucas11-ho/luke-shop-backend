@@ -36,6 +36,8 @@ jobs:
       - run: npm run verify
       - name: Theme System v1 A1 source/security guard
         run: node scripts/v0.15.0-theme-system-v1-a1-regression-test.mjs
+      - name: Theme System v1 A2 selection/runtime guard
+        run: node scripts/v0.15.0-theme-system-v1-a2-regression-test.mjs
       - name: VIP cashback redemption v1 source/security guard
         run: node scripts/v0.15.0-vip-cashback-redemption-v1-regression-test.mjs
       - name: VIP recurring voucher/gift issuance v1 source/security guard
