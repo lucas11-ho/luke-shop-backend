@@ -32,6 +32,14 @@ export async function merchantThemeRoutes(app) {
     preHandler:[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.TENANT_SETTINGS_READ)],
   }, async () => ({ data:{ themes:await listThemePackages(app.db,{publishedOnly:true,app:'STAFF_WEB'}) } }));
 
+  app.get('/v1/merchant/staff-experience/runtime', {
+    preHandler:[app.requireMerchantAuth],
+  }, async (request) => {
+    const store = await resolveStore(app.db, request.auth.tenantId, storeHeader(request));
+    const current = await getStaffThemeSelection(app.db,{tenantId:request.auth.tenantId,storeId:store.id});
+    return { data:{ store:{id:store.public_id,slug:store.slug,name:store.name}, theme_package:current.theme } };
+  });
+
   app.get('/v1/merchant/staff-experience', {
     preHandler:[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.TENANT_SETTINGS_READ)],
   }, async (request) => {
