@@ -16,6 +16,8 @@ pass(service.includes("app:'CUSTOMER_WEB', publishedOnly:true"), 'Draft and publ
 pass(service.includes("publishedOnly:false"), 'Rollback can preserve an immutable retired theme version');
 pass(routes.includes("'/v1/merchant/customer-experience/apply-theme'"), 'Merchant Customer theme apply endpoint exists');
 pass(routes.includes("'/v1/merchant/staff-experience'"), 'Merchant Staff theme settings endpoint exists');
+pass(routes.includes("'/v1/merchant/staff-experience/runtime'"), 'Authenticated Staff runtime endpoint exists');
+pass(routes.includes("app.get('/v1/merchant/staff-experience/runtime', {\n    preHandler:[app.requireMerchantAuth]"), 'Staff runtime requires authentication and inherits Backend store-scope enforcement');
 pass(routes.includes('TENANT_SETTINGS_WRITE'), 'Staff theme mutation uses tenant settings write permission');
 pass(routes.includes("action:'customer_experience.theme.apply'"), 'Customer theme changes are audited');
 pass(routes.includes("action:'staff_experience.theme.update'"), 'Staff theme changes are audited');
