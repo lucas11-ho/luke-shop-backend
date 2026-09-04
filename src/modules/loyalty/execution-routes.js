@@ -3,6 +3,7 @@ import { PERMISSIONS } from '../../core/permissions.js';
 import { writeAudit } from '../../core/audit.js';
 import { resolveStore } from '../catalog/service.js';
 import { adjustVipReward, expireDueVipEntitlements, expireDueVipRewards, vipExecutionSummary, vipRewardAccount } from './execution.js';
+import { vipCashbackRedemptionPolicy } from './redemption.js';
 
 const storeHeader=request=>request.headers['x-store-id']||null;
 const readGuard=app=>[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.LOYALTY_READ)];
@@ -22,6 +23,22 @@ export async function loyaltyExecutionRoutes(app){
       const result=await client.query(`UPDATE vip_programs SET upgrade_policy=$1,updated_at=now() WHERE tenant_id=$2 AND store_id=$3 RETURNING enabled,upgrade_policy`,[request.body.upgrade_policy,request.auth.tenantId,store.id]);
       if(!result.rowCount)throw errors.notFound('VIP_PROGRAM_NOT_FOUND','VIP program not found');policy=result.rows[0];
       await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'vip.execution_policy.update',targetType:'vip_program',targetId:store.id,metadata:{upgrade_policy:request.body.upgrade_policy},requestIp:request.ip,requestId:request.id});
+    });
+    return {data:{policy}};
+  });
+
+  app.get('/v1/merchant/vip/redemption-policy',{preHandler:readGuard(app)},async request=>{
+    const store=await merchantStore(app,request);const policy=await vipCashbackRedemptionPolicy(app.db,{tenantId:request.auth.tenantId,storeId:store.id});
+    return {data:{store:{id:store.public_id,name:store.name},policy}};
+  });
+
+  app.put('/v1/merchant/vip/redemption-policy',{preHandler:manageGuard(app),schema:{body:{type:'object',additionalProperties:false,required:['cashback_redemption_enabled','max_percent','min_amount'],properties:{cashback_redemption_enabled:{type:'boolean'},max_percent:{type:'number',minimum:0,maximum:100},min_amount:{type:'number',minimum:0,maximum:1000000}}}}},async request=>{
+    const store=await merchantStore(app,request);let policy;
+    await app.db.transaction(async client=>{
+      const result=await client.query(`UPDATE vip_programs SET cashback_redemption_enabled=$1,cashback_redemption_max_percent=$2,cashback_redemption_min_amount=$3,updated_at=now() WHERE tenant_id=$4 AND store_id=$5 RETURNING id`,[request.body.cashback_redemption_enabled,request.body.max_percent,request.body.min_amount,request.auth.tenantId,store.id]);
+      if(!result.rowCount)throw errors.notFound('VIP_PROGRAM_NOT_FOUND','VIP program not found');
+      policy=await vipCashbackRedemptionPolicy(client,{tenantId:request.auth.tenantId,storeId:store.id});
+      await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'vip.redemption_policy.update',targetType:'vip_program',targetId:store.id,metadata:{cashback_redemption_enabled:request.body.cashback_redemption_enabled,max_percent:Number(request.body.max_percent),min_amount:Number(request.body.min_amount)},requestIp:request.ip,requestId:request.id});
     });
     return {data:{policy}};
   });
@@ -49,7 +66,7 @@ export async function loyaltyExecutionRoutes(app){
 
   app.get('/v1/customer/vip/rewards',{preHandler:[app.requireCustomerAuth]},async request=>{
     const store=await resolveStore(app.db,request.auth.tenantId,storeHeader(request));
-    const rewards=await app.db.transaction(client=>vipRewardAccount(client,{tenantId:request.auth.tenantId,storeId:store.id,customerId:request.auth.actorId,ledgerLimit:50}));
-    return {data:{rewards}};
+    const result=await app.db.transaction(async client=>({rewards:await vipRewardAccount(client,{tenantId:request.auth.tenantId,storeId:store.id,customerId:request.auth.actorId,ledgerLimit:50}),redemption_policy:await vipCashbackRedemptionPolicy(client,{tenantId:request.auth.tenantId,storeId:store.id})}));
+    return {data:result};
   });
 }

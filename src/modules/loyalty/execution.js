@@ -1,6 +1,7 @@
 import { errors } from '../../core/errors.js';
 import { publicId, uuid } from '../../core/identifiers.js';
 import { evaluateCustomerVip } from './service.js';
+import { restoreVipCashbackRedemptionForOrder } from './redemption.js';
 
 const money=value=>Number(Number(value||0).toFixed(4));
 const json=value=>value&&typeof value==='object'&&!Array.isArray(value)?value:{};
@@ -72,13 +73,16 @@ export async function persistVipOrderSnapshots(client,{tenantId,storeId,orderId,
 
 export async function expireDueVipRewards(client,{tenantId,storeId,customerId=null}){
   const values=[tenantId,storeId];let customer='';if(customerId){values.push(customerId);customer=` AND e.customer_id=$${values.length}`;}
-  const due=await client.query(`SELECT e.* FROM vip_reward_ledger e WHERE e.tenant_id=$1 AND e.store_id=$2${customer}
-    AND (e.entry_type='EARN' OR (e.entry_type='ADMIN_ADJUSTMENT' AND e.amount>0)) AND e.expires_at IS NOT NULL AND e.expires_at<=now()
+  const due=await client.query(`SELECT e.*,
+      COALESCE((SELECT sum(a.amount) FROM vip_reward_redemption_allocations a WHERE a.tenant_id=e.tenant_id AND a.store_id=e.store_id AND a.source_ledger_entry_id=e.id),0)::numeric AS allocated_amount
+    FROM vip_reward_ledger e WHERE e.tenant_id=$1 AND e.store_id=$2${customer}
+    AND (e.entry_type IN ('EARN','REDEMPTION_RESTORE') OR (e.entry_type='ADMIN_ADJUSTMENT' AND e.amount>0)) AND e.expires_at IS NOT NULL AND e.expires_at<=now()
     AND NOT EXISTS(SELECT 1 FROM vip_reward_ledger x WHERE x.tenant_id=e.tenant_id AND x.store_id=e.store_id AND x.related_entry_id=e.id AND x.entry_type IN ('EXPIRE','REFUND_CLAWBACK','REVERSAL')) FOR UPDATE OF e`,values);
   let expired=0;
   for(const entry of due.rows){
+    const remaining=money(Math.max(0,Number(entry.amount)-Number(entry.allocated_amount||0)));if(remaining<=0)continue;
     const result=await client.query(`INSERT INTO vip_reward_ledger(id,public_id,tenant_id,store_id,customer_id,order_id,benefit_id,order_vip_benefit_id,related_entry_id,entry_type,amount,currency,source_key,description,metadata)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'EXPIRE',$10,$11,$12,$13,$14::jsonb) ON CONFLICT (tenant_id,store_id,source_key) DO NOTHING RETURNING id`,[uuid(),publicId('vrl'),tenantId,storeId,entry.customer_id,entry.order_id,entry.benefit_id,entry.order_vip_benefit_id,entry.id,-Math.abs(Number(entry.amount)),entry.currency,`EXPIRE:${entry.public_id}`,'VIP reward expired',JSON.stringify({source_entry_id:entry.public_id})]);
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'EXPIRE',$10,$11,$12,$13,$14::jsonb) ON CONFLICT (tenant_id,store_id,source_key) DO NOTHING RETURNING id`,[uuid(),publicId('vrl'),tenantId,storeId,entry.customer_id,entry.order_id,entry.benefit_id,entry.order_vip_benefit_id,entry.id,-remaining,entry.currency,`EXPIRE:${entry.public_id}`,'VIP reward expired',JSON.stringify({source_entry_id:entry.public_id,allocated_amount:money(entry.allocated_amount||0),expired_amount:remaining})]);
     expired+=result.rowCount;
   }
   return expired;
@@ -126,19 +130,22 @@ export async function processVipOrderCompletion(client,{tenantId,storeId,order})
 
 export async function processVipOrderRefund(client,{tenantId,storeId,order,refundRef}){
   await expireDueVipRewards(client,{tenantId,storeId,customerId:order.customer_id});
-  const earns=await client.query(`SELECT e.* FROM vip_reward_ledger e WHERE e.tenant_id=$1 AND e.store_id=$2 AND e.order_id=$3 AND e.entry_type='EARN'
-    AND NOT EXISTS(SELECT 1 FROM vip_reward_ledger x WHERE x.tenant_id=e.tenant_id AND x.store_id=e.store_id AND x.related_entry_id=e.id AND x.entry_type IN ('EXPIRE','REFUND_CLAWBACK','REVERSAL')) FOR UPDATE OF e`,[tenantId,storeId,order.id]);let clawed=0;
+  const earns=await client.query(`SELECT e.*,
+      COALESCE((SELECT abs(sum(x.amount)) FROM vip_reward_ledger x WHERE x.tenant_id=e.tenant_id AND x.store_id=e.store_id AND x.related_entry_id=e.id AND x.entry_type IN ('EXPIRE','REFUND_CLAWBACK','REVERSAL')),0)::numeric AS reversed_amount
+    FROM vip_reward_ledger e WHERE e.tenant_id=$1 AND e.store_id=$2 AND e.order_id=$3 AND e.entry_type='EARN' FOR UPDATE OF e`,[tenantId,storeId,order.id]);let clawed=0;
   for(const entry of earns.rows){
+    const amount=money(Math.max(0,Number(entry.amount)-Number(entry.reversed_amount||0)));if(amount<=0)continue;
     const sourceKey=`REFUND:${refundRef}:EARN:${entry.public_id}`;
     const inserted=await client.query(`INSERT INTO vip_reward_ledger(id,public_id,tenant_id,store_id,customer_id,order_id,benefit_id,order_vip_benefit_id,related_entry_id,entry_type,amount,currency,source_key,description,metadata)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'REFUND_CLAWBACK',$10,$11,$12,'Cashback clawed back after refund',$13::jsonb) ON CONFLICT (tenant_id,store_id,source_key) DO NOTHING RETURNING id`,[uuid(),publicId('vrl'),tenantId,storeId,order.customer_id,order.id,entry.benefit_id,entry.order_vip_benefit_id,entry.id,-Math.abs(Number(entry.amount)),entry.currency,sourceKey,JSON.stringify({refund_id:refundRef,earned_entry_id:entry.public_id})]);
-    if(inserted.rowCount)clawed+=Math.abs(Number(entry.amount));
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'REFUND_CLAWBACK',$10,$11,$12,'Cashback clawed back after refund',$13::jsonb) ON CONFLICT (tenant_id,store_id,source_key) DO NOTHING RETURNING id`,[uuid(),publicId('vrl'),tenantId,storeId,order.customer_id,order.id,entry.benefit_id,entry.order_vip_benefit_id,entry.id,-amount,entry.currency,sourceKey,JSON.stringify({refund_id:refundRef,earned_entry_id:entry.public_id})]);
+    if(inserted.rowCount)clawed=money(clawed+amount);
   }
+  const restored=await restoreVipCashbackRedemptionForOrder(client,{tenantId,storeId,orderId:order.id,restorationKey:`REFUND:${refundRef}`,reason:`VIP cashback restored after refund ${refundRef}`});
   await client.query(`UPDATE order_vip_benefits SET status='REVERSED',reversed_at=COALESCE(reversed_at,now()),reason='Order refunded' WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3 AND status IN ('APPLIED','EARNED','ISSUED')`,[tenantId,storeId,order.id]);
   const cancelled=await client.query(`UPDATE vip_entitlements SET status='CANCELLED',cancelled_at=now(),updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND source_order_id=$3 AND status='AVAILABLE'`,[tenantId,storeId,order.id]);
   const program=await client.query(`SELECT 1 FROM vip_programs WHERE tenant_id=$1 AND store_id=$2`,[tenantId,storeId]);let evaluation=null;
   if(program.rowCount)evaluation=await evaluateCustomerVip(client,{tenantId,storeId,customerId:order.customer_id,actorType:'SYSTEM',source:'REFUND',reason:`Refund ${refundRef} completed`});
-  return {cashback_clawed_back:money(clawed),entitlements_cancelled:cancelled.rowCount,tier_changed:!!evaluation?.changed};
+  return {cashback_clawed_back:money(clawed),cashback_redemption_restored:money(restored.amount),entitlements_cancelled:cancelled.rowCount,tier_changed:!!evaluation?.changed};
 }
 
 export async function vipRewardAccount(client,{tenantId,storeId,customerId,ledgerLimit=100}){

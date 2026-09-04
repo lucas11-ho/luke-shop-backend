@@ -2,6 +2,7 @@ import { loadConfig } from '../config.js';
 import { createDatabase } from '../db/pool.js';
 import { writeAudit } from '../core/audit.js';
 import { releaseReservations } from '../modules/orders/service.js';
+import { restoreVipCashbackRedemptionForOrder } from '../modules/loyalty/redemption.js';
 
 const config = loadConfig();
 const db = createDatabase(config);
@@ -27,6 +28,7 @@ try {
       await client.query(`UPDATE orders SET status='CANCELLED',reservation_expires_at=NULL,cancelled_at=now(),updated_at=now() WHERE id=$1`,[order.id]);
       await client.query(`UPDATE order_payments SET status='CANCELLED',cancelled_at=now(),updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3 AND status IN ('PENDING','PROCESSING','FAILED')`,[order.tenant_id,order.store_id,order.id]);
       await client.query(`UPDATE order_fulfillments SET status='CANCELLED',updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND order_id=$3 AND status NOT IN ('DELIVERED','COMPLETED','CANCELLED')`,[order.tenant_id,order.store_id,order.id]);
+      await restoreVipCashbackRedemptionForOrder(client,{tenantId:order.tenant_id,storeId:order.store_id,orderId:order.id,restorationKey:`EXPIRE:${order.public_id}`,reason:'VIP cashback restored after payment reservation expired'});
       await client.query(`INSERT INTO order_status_history(tenant_id,store_id,order_id,from_status,to_status,reason,actor_type,request_id) VALUES($1,$2,$3,$4,'CANCELLED','Payment reservation expired','SYSTEM','orders-expire')`,[order.tenant_id,order.store_id,order.id,order.status]);
       await writeAudit(client,{tenantId:order.tenant_id,actorType:'SYSTEM',action:'order.reservation.expire',targetType:'order',targetId:order.id,metadata:{order_number:order.order_number,from_status:order.status},requestId:'orders-expire'});
       return true;

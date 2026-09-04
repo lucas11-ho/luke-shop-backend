@@ -34,6 +34,8 @@ jobs:
             npm install --no-audit --no-fund --registry=https://registry.npmjs.org/
           fi
       - run: npm run verify
+      - name: VIP cashback redemption v1 source/security guard
+        run: node scripts/v0.15.0-vip-cashback-redemption-v1-regression-test.mjs
       - name: Staff store scope source guard
         run: node scripts/v0.15.0-staff-store-scope-v1-regression-test.mjs
       - name: Staff Web push v1.4 source/security guard
@@ -58,6 +60,8 @@ jobs:
           EOF
       - name: Migrate disposable PostgreSQL
         run: node --env-file=.env.ci src/db/migrate.js
+      - name: VIP cashback redemption lifecycle
+        run: node --env-file=.env.ci scripts/vip-cashback-redemption-lifecycle-test.mjs
       - name: PostgreSQL tenant-isolation smoke test
         run: npm run test:db
       - name: Authentication lifecycle
