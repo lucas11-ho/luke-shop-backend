@@ -48,6 +48,8 @@ import { platformAuthPlugin } from './modules/platform/auth.js';
 import { platformAuthRoutes } from './modules/platform/auth-routes.js';
 import { platformControlRoutes } from './modules/platform/control-routes.js';
 import { merchantCustomerExperienceRoutes } from './modules/customer-experience/merchant-routes.js';
+import { platformThemeRoutes } from './modules/themes/platform-routes.js';
+import { merchantThemeRoutes } from './modules/themes/merchant-routes.js';
 import { merchantAssetRoutes, publicAssetRoutes } from './modules/assets/routes.js';
 import { productNatureRoutes } from './modules/product-nature/routes.js';
 
@@ -142,6 +144,7 @@ export async function buildApp(config) {
   await app.register(merchantAuthRoutes);
   await app.register(merchantTenantRoutes);
   await app.register(merchantCustomerExperienceRoutes);
+  await app.register(merchantThemeRoutes);
   await app.register(merchantCustomerRoutes);
   await app.register(merchantAccessRoutes);
   await app.register(merchantStoreAccessRoutes);
@@ -176,6 +179,7 @@ export async function buildApp(config) {
   await app.register(customerServiceToolRoutes);
   await app.register(platformAuthRoutes);
   await app.register(platformControlRoutes);
+  await app.register(platformThemeRoutes);
 
   app.addHook('onClose', async () => app.db.close());
   return app;
