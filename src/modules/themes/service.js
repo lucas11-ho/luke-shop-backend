@@ -5,11 +5,6 @@ export const THEME_STATUS = Object.freeze(['DRAFT','PUBLISHED','RETIRED']);
 export const THEME_COMPONENT_CAPABILITIES = Object.freeze({
   CUSTOMER_WEB:Object.freeze({
     product_card:Object.freeze(['standard','minimal','soft','bold','technical','compact','quick_add','editorial']),
-    header:Object.freeze(['logo_left','centered_logo','search_first','compact','transparent']),
-    hero:Object.freeze(['split','full_width','slider','featured_product','video','minimal']),
-    categories:Object.freeze(['cards','circles','image_tiles','chips','horizontal']),
-    product_gallery:Object.freeze(['thumbnails','stacked']),
-    buy_box:Object.freeze(['sticky','standard']),
   }),
   STAFF_WEB:Object.freeze({
     workspace_card:Object.freeze(['standard','flat','outlined','compact']),
