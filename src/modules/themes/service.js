@@ -19,6 +19,19 @@ export const CUSTOMER_NAV_OPTION_CAPABILITIES = Object.freeze({
   nav_active_style:Object.freeze(['outline','filled','duotone']),
   nav_inactive_style:Object.freeze(['outline','filled']),
 });
+export const CUSTOMER_BUTTON_OPTION_CAPABILITIES = Object.freeze({
+  button_primary:Object.freeze(['solid','soft','outline','pill','ios_filled','ios_tonal','ios_outline','ios_soft','ios_pill']),
+  button_secondary:Object.freeze(['soft','solid','outline','ghost','pill','ios_tonal','ios_outline','ios_plain','ios_soft']),
+  button_tertiary:Object.freeze(['ghost','soft','outline','plain','ios_plain','ios_tonal','ios_outline']),
+  button_destructive:Object.freeze(['solid','soft','outline','ios_destructive','ios_destructive_soft','ios_destructive_outline']),
+  button_icon:Object.freeze(['round','square','ghost','ios_circle','ios_square','ios_plain']),
+  button_size:Object.freeze(['compact','standard','large']),
+});
+export const CUSTOMER_FORM_OPTION_CAPABILITIES = Object.freeze({
+  form_control:Object.freeze(['standard','ios_grouped','soft_filled','outline','minimal']),
+  form_size:Object.freeze(['compact','standard','large']),
+  form_group:Object.freeze(['standard','inset_grouped','card','flat']),
+});
 const PHOSPHOR_NAV=[...THEME_ICON_PACKS.PHOSPHOR_NAV];
 export const THEME_COMPONENT_CAPABILITIES = Object.freeze({
   CUSTOMER_WEB:Object.freeze({
@@ -29,6 +42,8 @@ export const THEME_COMPONENT_CAPABILITIES = Object.freeze({
     nav_orders_icon:Object.freeze(PHOSPHOR_NAV),
     nav_profile_icon:Object.freeze(PHOSPHOR_NAV),
     ...CUSTOMER_NAV_OPTION_CAPABILITIES,
+    ...CUSTOMER_BUTTON_OPTION_CAPABILITIES,
+    ...CUSTOMER_FORM_OPTION_CAPABILITIES,
   }),
   STAFF_WEB:Object.freeze({workspace_card:Object.freeze(['standard','flat','outlined','compact'])}),
 });
@@ -63,9 +78,9 @@ export function normalizeThemeNavigationIcons(raw={}){if(!raw||typeof raw!=='obj
 export function validateThemeNavigationIcons(theme,raw={}){const overrides=normalizeThemeNavigationIcons(raw);if(!Object.keys(overrides).length)return{};if(!theme)throw errors.badRequest('THEME_ICON_THEME_REQUIRED','Choose a Customer Web theme before changing navigation icons');const icons=theme.manifest?.icons||{},pack=normalizeIconPack(icons.pack),rendererAllowed=THEME_ICON_PACKS[pack]||[],packageAllowed=normalizeIconAllowList(pack,icons.allowed);for(const[slot,icon]of Object.entries(overrides))if(!CUSTOMER_NAV_SLOTS.includes(slot)||!rendererAllowed.includes(icon)||!packageAllowed.includes(icon))throw errors.badRequest('THEME_NAV_ICON_NOT_ALLOWED',`Navigation icon ${slot}:${icon} is not allowed by the selected theme package`);return overrides;}
 export function resolveThemeNavigationIcons(theme,rawOverrides={}){if(!theme)return{};const icons=theme.manifest?.icons||{},pack=normalizeIconPack(icons.pack),allowed=normalizeIconAllowList(pack,icons.allowed),defaults=normalizeNavigationIconDefaults(pack,icons.navigation_defaults,allowed),overrides=validateThemeNavigationIcons(theme,rawOverrides);return{...defaults,...overrides};}
 
-export function normalizeThemeComponentOverrides(raw={}){if(!raw||typeof raw!=='object'||Array.isArray(raw))return{};const out={};for(const[key,value]of Object.entries(raw).slice(0,24)){const k=safeIdentifier(key),v=safeIdentifier(value);if(k&&v)out[k]=v;}return out;}
+export function normalizeThemeComponentOverrides(raw={}){if(!raw||typeof raw!=='object'||Array.isArray(raw))return{};const out={};for(const[key,value]of Object.entries(raw).slice(0,32)){const k=safeIdentifier(key),v=safeIdentifier(value);if(k&&v)out[k]=v;}return out;}
 function normalizeVariantMap(raw={}){if(!raw||typeof raw!=='object'||Array.isArray(raw))return{};const out={};for(const[key,value]of Object.entries(raw).slice(0,120)){const k=safeIdentifier(key),v=safeIdentifier(value);if(k&&v)out[k]=v;}return out;}
-function normalizeComponentOptions(raw={},supportedApps=THEME_APPS){if(!raw||typeof raw!=='object'||Array.isArray(raw))return{};const capabilities={};for(const app of supportedApps)Object.assign(capabilities,THEME_COMPONENT_CAPABILITIES[app]||{});const out={};for(const[rawKey,values]of Object.entries(raw).slice(0,24)){const key=safeIdentifier(rawKey),allowed=capabilities[key];if(!key||!allowed||!Array.isArray(values)||NAV_OVERRIDE_TO_SLOT[key])continue;const variants=[...new Set(values.map(v=>safeIdentifier(v)).filter(v=>v&&allowed.includes(v)))].slice(0,16);if(variants.length)out[key]=variants;}return out;}
+function normalizeComponentOptions(raw={},supportedApps=THEME_APPS){if(!raw||typeof raw!=='object'||Array.isArray(raw))return{};const capabilities={};for(const app of supportedApps)Object.assign(capabilities,THEME_COMPONENT_CAPABILITIES[app]||{});const out={};for(const[rawKey,values]of Object.entries(raw).slice(0,32)){const key=safeIdentifier(rawKey),allowed=capabilities[key];if(!key||!allowed||!Array.isArray(values)||NAV_OVERRIDE_TO_SLOT[key])continue;const variants=[...new Set(values.map(v=>safeIdentifier(v)).filter(v=>v&&allowed.includes(v)))].slice(0,16);if(variants.length)out[key]=variants;}return out;}
 export function validateThemeComponentOverrides(theme,app,raw={}){
   const normalizedApp=String(app||'').trim().toUpperCase(),capabilities=THEME_COMPONENT_CAPABILITIES[normalizedApp];
   if(!capabilities)throw errors.badRequest('THEME_APP_INVALID','Unsupported theme application');
@@ -83,7 +98,7 @@ export function validateThemeComponentOverrides(theme,app,raw={}){
   }
   return overrides;
 }
-export function resolveThemeComponents(theme,app,rawOverrides={}){const normalizedApp=String(app||'').trim().toUpperCase(),capabilities=THEME_COMPONENT_CAPABILITIES[normalizedApp]||{},defaults=theme?.manifest?.components||{},overrides=normalizeThemeComponentOverrides(rawOverrides),effective={};for(const[key,allowed]of Object.entries(capabilities)){if(NAV_OVERRIDE_TO_SLOT[key]||Object.hasOwn(CUSTOMER_NAV_OPTION_CAPABILITIES,key))continue;const packageDefault=safeIdentifier(defaults[key]);if(packageDefault&&allowed.includes(packageDefault))effective[key]=packageDefault;const override=overrides[key];if(override&&allowed.includes(override))effective[key]=override;}return effective;}
+export function resolveThemeComponents(theme,app,rawOverrides={}){const normalizedApp=String(app||'').trim().toUpperCase(),capabilities=THEME_COMPONENT_CAPABILITIES[normalizedApp]||{},defaults=theme?.manifest?.components||{},overrides=normalizeThemeComponentOverrides(rawOverrides),effective={};for(const[key,allowed]of Object.entries(capabilities)){if(NAV_OVERRIDE_TO_SLOT[key]||Object.hasOwn(CUSTOMER_NAV_OPTION_CAPABILITIES,key)||Object.hasOwn(CUSTOMER_BUTTON_OPTION_CAPABILITIES,key))continue;const packageDefault=safeIdentifier(defaults[key]);if(packageDefault&&allowed.includes(packageDefault))effective[key]=packageDefault;const override=overrides[key];if(override&&allowed.includes(override))effective[key]=override;}return effective;}
 
 export function resolveThemeNavigationSettings(theme,rawOverrides={}){
   if(!theme)return{};
@@ -91,6 +106,18 @@ export function resolveThemeNavigationSettings(theme,rawOverrides={}){
   const defaults={nav_mobile:nav.mobile||'standard',nav_labels:nav.labels||'always',nav_indicator:nav.active_indicator||'filled_icon',nav_container:nav.container||'edge',nav_icon_size:`size_${icons.size||24}`,nav_active_style:icons.active_style||'filled',nav_inactive_style:icons.inactive_style||'outline'};
   const out={...defaults};
   for(const[key,rendererAllowed]of Object.entries(CUSTOMER_NAV_OPTION_CAPABILITIES)){
+    const requested=overrides[key],packageAllowed=Array.isArray(advertised[key])?advertised[key]:[];
+    if(requested&&rendererAllowed.includes(requested)&&packageAllowed.includes(requested))out[key]=requested;
+  }
+  return out;
+}
+
+export function resolveThemeButtonSettings(theme,rawOverrides={}){
+  if(!theme)return{};
+  const manifest=theme.manifest||{},buttons=manifest.buttons||{},advertised=manifest.component_options||{},overrides=normalizeThemeComponentOverrides(rawOverrides);
+  const defaults={button_primary:buttons.primary||'solid',button_secondary:buttons.secondary||'soft',button_tertiary:buttons.tertiary||'ghost',button_destructive:buttons.destructive||'solid',button_icon:buttons.icon||'round',button_size:buttons.size||'standard'};
+  const out={...defaults};
+  for(const[key,rendererAllowed]of Object.entries(CUSTOMER_BUTTON_OPTION_CAPABILITIES)){
     const requested=overrides[key],packageAllowed=Array.isArray(advertised[key])?advertised[key]:[];
     if(requested&&rendererAllowed.includes(requested)&&packageAllowed.includes(requested))out[key]=requested;
   }
@@ -109,7 +136,7 @@ export function normalizeThemeManifest(raw={}, {supportedApps=THEME_APPS}={}){
     foundations:{colors:normalizedColors,radius:pick(foundations.radius,['small','medium','large','xl','pill'],'medium'),density:pick(foundations.density,['compact','comfortable','spacious'],'comfortable'),elevation:pick(foundations.elevation,['flat','soft','raised'],'soft'),motion:pick(foundations.motion,['reduced','standard','expressive'],'standard')},
     typography:{preset:safePackKey(typography.preset,'SYSTEM_MINIMAL'),scale:pick(typography.scale,['compact','standard','large'],'standard')},
     icons:{pack:iconPack,active_style:pick(icons.active_style,['outline','filled','duotone'],'filled'),inactive_style:pick(icons.inactive_style,['outline','filled'],'outline'),size:[20,22,24,26].includes(iconSize)?iconSize:24,allowed:iconAllowed,navigation_defaults:normalizeNavigationIconDefaults(iconPack,icons.navigation_defaults,iconAllowed)},
-    buttons:{primary:safeIdentifier(buttons.primary,'solid'),secondary:safeIdentifier(buttons.secondary,'soft'),tertiary:safeIdentifier(buttons.tertiary,'ghost'),destructive:safeIdentifier(buttons.destructive,'solid'),icon:safeIdentifier(buttons.icon,'round'),size:pick(buttons.size,['compact','standard','large'],'standard')},
+    buttons:{primary:pick(safeIdentifier(buttons.primary),CUSTOMER_BUTTON_OPTION_CAPABILITIES.button_primary,'solid'),secondary:pick(safeIdentifier(buttons.secondary),CUSTOMER_BUTTON_OPTION_CAPABILITIES.button_secondary,'soft'),tertiary:pick(safeIdentifier(buttons.tertiary),CUSTOMER_BUTTON_OPTION_CAPABILITIES.button_tertiary,'ghost'),destructive:pick(safeIdentifier(buttons.destructive),CUSTOMER_BUTTON_OPTION_CAPABILITIES.button_destructive,'solid'),icon:pick(safeIdentifier(buttons.icon),CUSTOMER_BUTTON_OPTION_CAPABILITIES.button_icon,'round'),size:pick(buttons.size,CUSTOMER_BUTTON_OPTION_CAPABILITIES.button_size,'standard')},
     navigation:{mobile:pick(navigation.mobile,['standard','ios_tab','floating_tab','minimal_tab','commerce_tab'],'ios_tab'),desktop:pick(navigation.desktop,['header','header_centered','sidebar'],'header'),labels:pick(navigation.labels,['always','active_only','hidden'],'always'),active_indicator:pick(navigation.active_indicator,['filled_icon','pill','dot','underline','background'],'filled_icon'),container:pick(navigation.container,['edge','floating','glass'],'edge')},
     components:normalizeVariantMap(raw.components),component_options:normalizeComponentOptions(raw.component_options,supportedApps),
   };
