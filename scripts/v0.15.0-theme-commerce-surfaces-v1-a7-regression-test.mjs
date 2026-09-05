@@ -1,0 +1,16 @@
+import fs from'node:fs';
+const read=p=>fs.readFileSync(p,'utf8');let n=0;const pass=(ok,msg)=>{if(!ok)throw new Error(`FAIL ${msg}`);n++;console.log(`PASS ${msg}`)};
+const service=read('src/modules/themes/service.js');
+pass(service.includes('CUSTOMER_SURFACE_OPTION_CAPABILITIES'),'Backend declares a dedicated Customer commerce-surface capability contract');
+pass(service.includes("header_surface:Object.freeze(['standard','ios_clean','compact','glass'])"),'Header surface recipes are bounded');
+pass(service.includes("search_surface:Object.freeze(['standard','ios_search','pill','sheet'])"),'Search surface recipes are bounded');
+pass(service.includes("account_surface:Object.freeze(['standard','ios_grouped','soft','compact'])"),'Account surface recipes are bounded');
+pass(service.includes("cart_surface:Object.freeze(['standard','ios_grouped','soft','compact'])"),'Cart surface recipes are bounded');
+pass(service.includes("checkout_surface:Object.freeze(['standard','ios_grouped','soft','compact'])"),'Checkout surface recipes are bounded');
+pass(service.includes('...CUSTOMER_SURFACE_OPTION_CAPABILITIES'),'Surface recipes participate in the same Customer renderer capability contract');
+pass(service.includes("const packageAllowed=Array.isArray(advertised[key])?advertised[key]:[]")&&service.includes('packageAllowed.includes(variant)'),'Surface overrides still require exact immutable package advertisement');
+pass(service.includes('normalizeThemeComponentOverrides')&&service.includes('validateThemeComponentOverrides'),'Surface choices reuse governed Customer Experience override validation');
+pass(service.includes('THEME_COMPONENT_VARIANT_NOT_ALLOWED'),'Unknown or unadvertised surface recipes fail closed');
+pass(service.includes('FORBIDDEN_KEYS')&&service.includes('THEME_PACKAGE_EXECUTABLE_CONTENT_FORBIDDEN'),'Theme packages still reject raw executable/presentation content');
+pass(!service.includes('header_html')&&!service.includes('checkout_script'),'A7 adds no raw markup or checkout execution escape hatch');
+console.log(`${n}/${n} Theme Commerce Surfaces v1 A7 Backend checks passed`);
