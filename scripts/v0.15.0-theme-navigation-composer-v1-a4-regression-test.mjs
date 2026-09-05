@@ -1,6 +1,6 @@
 import fs from'node:fs';
 const read=p=>fs.readFileSync(p,'utf8');let n=0;const pass=(ok,msg)=>{if(!ok)throw new Error(`FAIL ${msg}`);n++;console.log(`PASS ${msg}`)};
-const themes=read('src/modules/themes/service.js'),themeRoutes=read('src/modules/themes/merchant-routes.js'),cxRoutes=read('src/modules/customer-experience/merchant-routes.js'),iconPolicy=read('src/modules/themes/customer-icon-policy.js'),icons=read('src/modules/icons/service.js');
+const themes=read('src/modules/themes/service.js'),themeRoutes=read('src/modules/themes/merchant-routes.js'),cxRoutes=read('src/modules/customer-experience/merchant-routes.js'),iconRoutes=read('src/modules/icons/merchant-routes.js'),iconPolicy=read('src/modules/themes/customer-icon-policy.js'),icons=read('src/modules/icons/service.js');
 pass(themes.includes("nav_mobile:Object.freeze(['standard','ios_tab','floating_tab','minimal_tab','commerce_tab'])"),'A4 bounds Customer mobile navigation layouts');
 pass(themes.includes("nav_labels:Object.freeze(['always','active_only','hidden'])"),'A4 bounds navigation label modes');
 pass(themes.includes("nav_indicator:Object.freeze(['filled_icon','pill','dot','underline','background'])"),'A4 bounds active indicators');
@@ -9,7 +9,7 @@ pass(themes.includes("nav_icon_size:Object.freeze(['size_20','size_22','size_24'
 pass(themes.includes("nav_active_style:Object.freeze(['outline','filled','duotone'])")&&themes.includes("nav_inactive_style:Object.freeze(['outline','filled'])"),'A4 bounds active and inactive icon weights');
 pass(themes.includes('THEME_NAV_OPTION_KEYS')&&themes.includes('resolveThemeNavigationSettings'),'Backend owns safe effective Navigation Composer settings');
 pass(themes.includes('THEME_NAV_OPTION_KEYS.has(key)'),'immutable packages may advertise only renderer-backed navigation options');
-pass(themeRoutes.includes("/v1/merchant/customer-experience/icon-catalog")&&themeRoutes.includes("status:'PUBLISHED',scope:'NAVIGATION'"),'Merchant picker receives only published Platform-approved Navigation icons');
+pass(iconRoutes.includes("/v1/merchant/icon-library")&&iconRoutes.includes("status:'PUBLISHED',scope:request.query?.scope||null"),'reusable Merchant icon catalog returns only published Platform icons by requested scope');
 pass(themeRoutes.includes('validateCustomerNavigationIconPolicy(client,componentOverrides,{strict:true})'),'Theme apply route enforces Platform icon policy server-side');
 pass(iconPolicy.includes("NAV_ICON_KEYS=Object.freeze(['nav_home_icon','nav_explore_icon','nav_cart_icon','nav_orders_icon','nav_profile_icon'])"),'shared policy covers all five Customer navigation slots');
 pass(iconPolicy.includes("scope:'NAVIGATION'")&&iconPolicy.includes("libraryPack:'PHOSPHOR'"),'shared policy is scoped to Platform-approved Phosphor navigation glyphs');
