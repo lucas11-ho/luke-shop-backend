@@ -2,6 +2,7 @@ import { errors } from '../../core/errors.js';
 import { publicId, uuid } from '../../core/identifiers.js';
 import { normalizeExperienceExtensions, loadTenantExperiencePolicy, applyTenantExperiencePolicy } from './extension-normalizer.js';
 import { normalizeThemeSelection, resolveThemePackage } from '../themes/selection-service.js';
+import { normalizeThemeComponentOverrides, validateThemeComponentOverrides } from '../themes/service.js';
 
 const NAV = new Set(['home','explore','cart','orders','profile']);
 const SECTION_TYPES = new Set(['announcement_bar','hero','hero_slider','categories','featured_products','promotion_banner','new_arrivals']);
@@ -106,6 +107,7 @@ export function normalizeExperienceConfig(input = {}) {
     schema_version: 4,
     ...normalizeExperienceExtensions(raw),
     theme_package: normalizeThemeSelection(raw.theme_package),
+    theme_component_overrides: normalizeThemeComponentOverrides(raw.theme_component_overrides),
     status_visual_pack: oneOf(String(raw.status_visual_pack || 'AUTO').toUpperCase(), STATUS_VISUAL_PACKS, 'AUTO'),
     theme: {
       preset: text(theme.preset || THEME_DEFAULT.preset, 60),
@@ -221,9 +223,15 @@ export async function loadExperienceCatalog(db) {
   return { templates: templates.rows, typography_presets: typography.rows, status_visual_packs: [{ key:'AUTO',name:'Automatic',business_type:'TEMPLATE',status:'ACTIVE',icons:{},settings:{} }, ...statusPacks.rows] };
 }
 
-async function validateCustomerTheme(client, selection, { publishedOnly = true } = {}) {
-  if (!selection) return null;
-  return resolveThemePackage(client, selection, { app:'CUSTOMER_WEB', publishedOnly });
+async function validateCustomerTheme(client, selection, componentOverrides = {}, { publishedOnly = true } = {}) {
+  const overrides = normalizeThemeComponentOverrides(componentOverrides);
+  if (!selection) {
+    if (Object.keys(overrides).length) throw errors.badRequest('THEME_COMPONENT_THEME_REQUIRED','Choose a Customer Web theme before changing component variants');
+    return null;
+  }
+  const theme = await resolveThemePackage(client, selection, { app:'CUSTOMER_WEB', publishedOnly });
+  validateThemeComponentOverrides(theme,'CUSTOMER_WEB',overrides);
+  return theme;
 }
 
 export async function updateDraft(client, { tenantId, storeId, actorId, config, templateKey = undefined, templateCustomized = undefined }) {
@@ -232,7 +240,7 @@ export async function updateDraft(client, { tenantId, storeId, actorId, config, 
     [tenantId, storeId],
   );
   const normalized = applyTenantExperiencePolicy(normalizeExperienceConfig(config), await loadTenantExperiencePolicy(client, tenantId));
-  await validateCustomerTheme(client, normalized.theme_package, { publishedOnly:true });
+  await validateCustomerTheme(client, normalized.theme_package, normalized.theme_component_overrides, { publishedOnly:true });
   if (current.rowCount) {
     const selectedTemplate = templateKey === undefined ? current.rows[0].template_key : templateKey;
     const baseTemplate = templateKey === undefined ? (current.rows[0].base_template_key || current.rows[0].template_key) : templateKey;
@@ -270,12 +278,13 @@ export async function applyExperienceTemplate(client, { tenantId, storeId, actor
   return updateDraft(client,{ tenantId, storeId, actorId, config:next, templateKey, templateCustomized:mode !== 'full' });
 }
 
-export async function applyExperienceThemePackage(client, { tenantId, storeId, actorId, selection }) {
+export async function applyExperienceThemePackage(client, { tenantId, storeId, actorId, selection, componentOverrides = {} }) {
   const loaded = await loadExperience(client, tenantId, storeId);
   const current = loaded.draft?.config || loaded.published?.config || {};
   const normalizedSelection = normalizeThemeSelection(selection);
-  await validateCustomerTheme(client, normalizedSelection, { publishedOnly:true });
-  return updateDraft(client, { tenantId, storeId, actorId, config:{ ...current, theme_package:normalizedSelection } });
+  const normalizedOverrides = normalizeThemeComponentOverrides(componentOverrides);
+  await validateCustomerTheme(client, normalizedSelection, normalizedOverrides, { publishedOnly:true });
+  return updateDraft(client, { tenantId, storeId, actorId, config:{ ...current, theme_package:normalizedSelection, theme_component_overrides:normalizedOverrides } });
 }
 
 export async function publishDraft(client, { tenantId, storeId, actorId }) {
@@ -284,7 +293,7 @@ export async function publishDraft(client, { tenantId, storeId, actorId }) {
   );
   if (!draft.rowCount) throw errors.conflict('CUSTOMER_EXPERIENCE_DRAFT_REQUIRED', 'Save a draft before publishing');
   const normalized = normalizeExperienceConfig(draft.rows[0].config);
-  await validateCustomerTheme(client, normalized.theme_package, { publishedOnly:true });
+  await validateCustomerTheme(client, normalized.theme_package, normalized.theme_component_overrides, { publishedOnly:true });
   await client.query(`UPDATE storefront_experience_versions SET state='ARCHIVED',updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND state='PUBLISHED'`, [tenantId, storeId]);
   const published = await client.query(
     `UPDATE storefront_experience_versions SET state='PUBLISHED',config=$1::jsonb,schema_version=4,published_by=$2,published_at=now(),updated_at=now()
@@ -306,7 +315,7 @@ export async function rollbackExperience(client, { tenantId, storeId, actorId, v
   );
   if (!source.rowCount) throw errors.notFound('CUSTOMER_EXPERIENCE_VERSION_NOT_FOUND', 'Published experience version not found');
   const normalized = normalizeExperienceConfig(source.rows[0].config);
-  await validateCustomerTheme(client, normalized.theme_package, { publishedOnly:false });
+  await validateCustomerTheme(client, normalized.theme_package, normalized.theme_component_overrides, { publishedOnly:false });
   await client.query(`UPDATE storefront_experience_versions SET state='ARCHIVED',updated_at=now() WHERE tenant_id=$1 AND store_id=$2 AND state IN ('PUBLISHED','DRAFT')`, [tenantId, storeId]);
   const max = await client.query('SELECT COALESCE(MAX(version),0)::int AS v FROM storefront_experience_versions WHERE tenant_id=$1 AND store_id=$2', [tenantId, storeId]);
   const publishedVersion = max.rows[0].v + 1;
