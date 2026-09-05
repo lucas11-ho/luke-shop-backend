@@ -5,6 +5,7 @@ import { writeAudit } from '../../core/audit.js';
 import { resolveStore } from '../catalog/service.js';
 import { applyExperienceTemplate, loadExperience, loadExperienceCatalog, updateDraft, publishDraft, rollbackExperience } from './service.js';
 import { loadTenantExperiencePolicy } from './extension-normalizer.js';
+import { validateCustomerExperienceIconPolicy } from '../themes/customer-icon-policy.js';
 
 const storeHeader = (request) => request.headers['x-store-id'] || null;
 
@@ -41,6 +42,7 @@ export async function merchantCustomerExperienceRoutes(app) {
   }, async (request) => {
     const store = await resolveStore(app.db, request.auth.tenantId, storeHeader(request));
     const draft = await app.db.transaction(async (client) => {
+      await validateCustomerExperienceIconPolicy(client,request.body.config,{strict:true});
       const saved = await updateDraft(client, { tenantId:request.auth.tenantId, storeId:store.id, actorId:request.auth.actorId, config:request.body.config });
       await writeAudit(client, { tenantId:request.auth.tenantId, actorType:'MERCHANT', actorId:request.auth.actorId,
         action:'customer_experience.draft.update', targetType:'store', targetId:store.id, metadata:{version:saved.version}, requestIp:request.ip, requestId:request.id });
@@ -56,6 +58,7 @@ export async function merchantCustomerExperienceRoutes(app) {
     const store = await resolveStore(app.db, request.auth.tenantId, storeHeader(request));
     const draft = await app.db.transaction(async (client) => {
       const saved = await applyExperienceTemplate(client,{tenantId:request.auth.tenantId,storeId:store.id,actorId:request.auth.actorId,templateKey:request.body.template_key,mode:request.body.mode||'full',keepContent:request.body.keep_content!==false});
+      await validateCustomerExperienceIconPolicy(client,saved.config,{strict:true});
       await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'customer_experience.template.apply',targetType:'store',targetId:store.id,metadata:{template_key:request.body.template_key,mode:request.body.mode||'full',keep_content:request.body.keep_content!==false,version:saved.version},requestIp:request.ip,requestId:request.id});
       return saved;
     });
@@ -92,6 +95,9 @@ export async function merchantCustomerExperienceRoutes(app) {
   }, async (request) => {
     const store = await resolveStore(app.db, request.auth.tenantId, storeHeader(request));
     const published = await app.db.transaction(async (client) => {
+      const pending=await client.query(`SELECT config FROM storefront_experience_versions WHERE tenant_id=$1 AND store_id=$2 AND state='DRAFT' LIMIT 1 FOR UPDATE`,[request.auth.tenantId,store.id]);
+      if(!pending.rowCount)throw errors.conflict('CUSTOMER_EXPERIENCE_DRAFT_REQUIRED','Save a draft before publishing');
+      await validateCustomerExperienceIconPolicy(client,pending.rows[0].config,{strict:true});
       const row = await publishDraft(client, { tenantId:request.auth.tenantId, storeId:store.id, actorId:request.auth.actorId });
       await client.query('UPDATE storefront_preview_tokens SET revoked_at=COALESCE(revoked_at,now()) WHERE tenant_id=$1 AND store_id=$2 AND revoked_at IS NULL', [request.auth.tenantId, store.id]);
       await writeAudit(client, { tenantId:request.auth.tenantId, actorType:'MERCHANT', actorId:request.auth.actorId,
