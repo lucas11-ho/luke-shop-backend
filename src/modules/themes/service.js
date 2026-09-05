@@ -10,6 +10,19 @@ export const THEME_COMPONENT_CAPABILITIES = Object.freeze({
     workspace_card:Object.freeze(['standard','flat','outlined','compact']),
   }),
 });
+export const THEME_ICON_PACKS = Object.freeze({
+  LUKE_OUTLINE:Object.freeze(['home','grid','bag','receipt','user']),
+  PHOSPHOR_NAV:Object.freeze([
+    'house','storefront','squares-four','shopping-bag','basket','handbag','receipt','clipboard-text','package','list-checks',
+    'user-circle','user','identification-card','heart','star','compass','magnifying-glass','tag','ticket','gift','bell','map-pin',
+    'clock','wallet','credit-card','chat-circle','phone','shopping-cart','bookmark-simple','notebook',
+  ]),
+});
+export const CUSTOMER_NAV_SLOTS = Object.freeze(['home','explore','cart','orders','profile']);
+const ICON_PACK_DEFAULTS = Object.freeze({
+  LUKE_OUTLINE:Object.freeze({home:'home',explore:'grid',cart:'bag',orders:'receipt',profile:'user'}),
+  PHOSPHOR_NAV:Object.freeze({home:'house',explore:'storefront',cart:'shopping-bag',orders:'receipt',profile:'user-circle'}),
+});
 
 const APP_SET = new Set(THEME_APPS);
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -57,6 +70,67 @@ function safeHttps(value) {
   } catch {
     return '';
   }
+}
+
+function normalizeIconPack(value) {
+  const requested = safePackKey(value, 'LUKE_OUTLINE');
+  return Object.hasOwn(THEME_ICON_PACKS, requested) ? requested : 'LUKE_OUTLINE';
+}
+
+function normalizeIconAllowList(pack, raw) {
+  const supported = THEME_ICON_PACKS[pack] || THEME_ICON_PACKS.LUKE_OUTLINE;
+  if (!Array.isArray(raw) || !raw.length) return [...supported];
+  const values = [...new Set(raw.map(value=>safeIdentifier(value)).filter(value=>value && supported.includes(value)))].slice(0, 80);
+  return values.length ? values : [...supported];
+}
+
+function normalizeNavigationIconDefaults(pack, raw = {}, allowed = THEME_ICON_PACKS[pack] || []) {
+  const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const packDefaults = ICON_PACK_DEFAULTS[pack] || ICON_PACK_DEFAULTS.LUKE_OUTLINE;
+  const out = {};
+  for (const slot of CUSTOMER_NAV_SLOTS) {
+    const requested = safeIdentifier(source[slot]);
+    const fallback = allowed.includes(packDefaults[slot]) ? packDefaults[slot] : allowed[0];
+    if (requested && allowed.includes(requested)) out[slot] = requested;
+    else if (fallback) out[slot] = fallback;
+  }
+  return out;
+}
+
+export function normalizeThemeNavigationIcons(raw = {}) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out = {};
+  for (const slot of CUSTOMER_NAV_SLOTS) {
+    const icon = safeIdentifier(raw[slot]);
+    if (icon) out[slot] = icon;
+  }
+  return out;
+}
+
+export function validateThemeNavigationIcons(theme, raw = {}) {
+  const overrides = normalizeThemeNavigationIcons(raw);
+  if (!Object.keys(overrides).length) return {};
+  if (!theme) throw errors.badRequest('THEME_ICON_THEME_REQUIRED', 'Choose a Customer Web theme before changing navigation icons');
+  const icons = theme.manifest?.icons || {};
+  const pack = normalizeIconPack(icons.pack);
+  const rendererAllowed = THEME_ICON_PACKS[pack] || [];
+  const packageAllowed = normalizeIconAllowList(pack, icons.allowed);
+  for (const [slot, icon] of Object.entries(overrides)) {
+    if (!CUSTOMER_NAV_SLOTS.includes(slot) || !rendererAllowed.includes(icon) || !packageAllowed.includes(icon)) {
+      throw errors.badRequest('THEME_NAV_ICON_NOT_ALLOWED', `Navigation icon ${slot}:${icon} is not allowed by the selected theme package`);
+    }
+  }
+  return overrides;
+}
+
+export function resolveThemeNavigationIcons(theme, rawOverrides = {}) {
+  if (!theme) return {};
+  const icons = theme.manifest?.icons || {};
+  const pack = normalizeIconPack(icons.pack);
+  const allowed = normalizeIconAllowList(pack, icons.allowed);
+  const defaults = normalizeNavigationIconDefaults(pack, icons.navigation_defaults, allowed);
+  const overrides = validateThemeNavigationIcons(theme, rawOverrides);
+  return { ...defaults, ...overrides };
 }
 
 export function normalizeThemeComponentOverrides(raw = {}) {
@@ -148,6 +222,8 @@ export function normalizeThemeManifest(raw = {}, { supportedApps = THEME_APPS } 
   const icons = raw.icons && typeof raw.icons === 'object' && !Array.isArray(raw.icons) ? raw.icons : {};
   const buttons = raw.buttons && typeof raw.buttons === 'object' && !Array.isArray(raw.buttons) ? raw.buttons : {};
   const navigation = raw.navigation && typeof raw.navigation === 'object' && !Array.isArray(raw.navigation) ? raw.navigation : {};
+  const iconPack = normalizeIconPack(icons.pack);
+  const iconAllowed = normalizeIconAllowList(iconPack, icons.allowed);
 
   const iconSize = Number(icons.size);
   return {
@@ -164,10 +240,12 @@ export function normalizeThemeManifest(raw = {}, { supportedApps = THEME_APPS } 
       scale: pick(typography.scale, ['compact','standard','large'], 'standard'),
     },
     icons: {
-      pack: safePackKey(icons.pack, 'LUKE_OUTLINE'),
+      pack: iconPack,
       active_style: pick(icons.active_style, ['outline','filled','duotone'], 'filled'),
       inactive_style: pick(icons.inactive_style, ['outline','filled'], 'outline'),
       size: [20,22,24,26].includes(iconSize) ? iconSize : 24,
+      allowed: iconAllowed,
+      navigation_defaults: normalizeNavigationIconDefaults(iconPack, icons.navigation_defaults, iconAllowed),
     },
     buttons: {
       primary: safeIdentifier(buttons.primary, 'solid'),
