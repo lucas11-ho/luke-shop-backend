@@ -2,7 +2,6 @@ import { PERMISSIONS } from '../../core/permissions.js';
 import { writeAudit } from '../../core/audit.js';
 import { resolveStore } from '../catalog/service.js';
 import { applyExperienceThemePackage } from '../customer-experience/service.js';
-import { listPlatformIcons } from '../icons/service.js';
 import { listThemePackages, normalizeThemeComponentOverrides } from './service.js';
 import { validateCustomerNavigationIconPolicy } from './customer-icon-policy.js';
 import { getStaffThemeSelection, normalizeThemeSelection, setStaffThemeSelection } from './selection-service.js';
@@ -15,10 +14,6 @@ export async function merchantThemeRoutes(app) {
   app.get('/v1/merchant/customer-experience/theme-catalog', {
     preHandler:[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.CUSTOMER_EXPERIENCE_READ)],
   }, async () => ({ data:{ themes:await listThemePackages(app.db,{publishedOnly:true,app:'CUSTOMER_WEB'}) } }));
-
-  app.get('/v1/merchant/customer-experience/icon-catalog', {
-    preHandler:[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.CUSTOMER_EXPERIENCE_READ)],
-  }, async () => ({ data:{ icons:await listPlatformIcons(app.db,{status:'PUBLISHED',scope:'NAVIGATION'}) } }));
 
   app.post('/v1/merchant/customer-experience/apply-theme', {
     preHandler:[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.CUSTOMER_EXPERIENCE_MANAGE)],
