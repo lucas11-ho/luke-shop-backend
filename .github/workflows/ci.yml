@@ -44,6 +44,8 @@ jobs:
         run: node scripts/v0.15.0-theme-navigation-composer-v1-a4-regression-test.mjs
       - name: Theme Controls v1 A5 button/form guard
         run: node scripts/v0.15.0-theme-controls-v1-a5-regression-test.mjs
+      - name: Theme Product + Typography Composer v1 A6 source/security guard
+        run: node scripts/v0.15.0-theme-product-typography-v1-a6-regression-test.mjs
       - name: Platform Icon Library v1 A1 source/security guard
         run: node scripts/v0.15.0-platform-icon-library-v1-a1-regression-test.mjs
       - name: VIP cashback redemption v1 source/security guard
