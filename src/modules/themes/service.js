@@ -55,6 +55,13 @@ export const CUSTOMER_TYPOGRAPHY_OPTION_CAPABILITIES = Object.freeze({
   typography_line_height:Object.freeze(['tight','standard','relaxed']),
   typography_letter_spacing:Object.freeze(['tight','normal','wide']),
 });
+export const CUSTOMER_SURFACE_OPTION_CAPABILITIES = Object.freeze({
+  header_surface:Object.freeze(['standard','ios_clean','compact','glass']),
+  search_surface:Object.freeze(['standard','ios_search','pill','sheet']),
+  account_surface:Object.freeze(['standard','ios_grouped','soft','compact']),
+  cart_surface:Object.freeze(['standard','ios_grouped','soft','compact']),
+  checkout_surface:Object.freeze(['standard','ios_grouped','soft','compact']),
+});
 const PHOSPHOR_NAV=[...THEME_ICON_PACKS.PHOSPHOR_NAV];
 export const THEME_COMPONENT_CAPABILITIES = Object.freeze({
   CUSTOMER_WEB:Object.freeze({
@@ -69,6 +76,7 @@ export const THEME_COMPONENT_CAPABILITIES = Object.freeze({
     ...CUSTOMER_FORM_OPTION_CAPABILITIES,
     ...CUSTOMER_PRODUCT_OPTION_CAPABILITIES,
     ...CUSTOMER_TYPOGRAPHY_OPTION_CAPABILITIES,
+    ...CUSTOMER_SURFACE_OPTION_CAPABILITIES,
   }),
   STAFF_WEB:Object.freeze({workspace_card:Object.freeze(['standard','flat','outlined','compact'])}),
 });
