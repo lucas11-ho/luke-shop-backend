@@ -60,6 +60,25 @@ export async function listPlatformIcons(db,{status=null,scope=null}={}){
   return result.rows.map(publicPlatformIcon);
 }
 
+export async function requirePublishedPlatformGlyphs(db,{scope,libraryPack,glyphs,errorCode='PLATFORM_ICON_NOT_ALLOWED'}={}){
+  const normalizedScope=String(scope||'').trim().toUpperCase();
+  const normalizedPack=String(libraryPack||'').trim().toUpperCase();
+  if(!SCOPES.has(normalizedScope)) throw errors.badRequest('ICON_SCOPE_UNSUPPORTED',`Unsupported icon usage scope: ${normalizedScope}`);
+  if(!ICON_LIBRARY_PACKS.includes(normalizedPack)) throw errors.badRequest('ICON_PACK_UNSUPPORTED','Unsupported icon library pack');
+  const requested=[...new Set((Array.isArray(glyphs)?glyphs:[]).map(v=>String(v||'').trim().toLowerCase()).filter(Boolean))];
+  if(!requested.length)return[];
+  const result=await db.query(
+    `SELECT library_icon FROM platform_icons
+      WHERE status='PUBLISHED' AND source_type='LIBRARY' AND library_pack=$1
+        AND usage_scopes @> $2::jsonb AND library_icon=ANY($3::text[])`,
+    [normalizedPack,JSON.stringify([normalizedScope]),requested],
+  );
+  const allowed=new Set(result.rows.map(row=>String(row.library_icon||'').toLowerCase()));
+  const missing=requested.filter(glyph=>!allowed.has(glyph));
+  if(missing.length)throw errors.badRequest(errorCode,`Platform Owner has not published ${missing.join(', ')} for ${normalizedScope.toLowerCase()} use`);
+  return requested;
+}
+
 export async function findPlatformIcon(db,key,{forUpdate=false}={}){
   const result=await db.query(`SELECT * FROM platform_icons WHERE key=$1${forUpdate?' FOR UPDATE':''}`,[normalizeIconKey(key)]);
   if(!result.rowCount)throw errors.notFound('PLATFORM_ICON_NOT_FOUND','Platform icon not found');
