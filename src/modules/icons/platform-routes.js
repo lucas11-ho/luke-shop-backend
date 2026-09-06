@@ -35,6 +35,7 @@ export async function platformIconRoutes(app){
   }));
 
   app.post('/v1/platform/icons/custom-image',{
+    bodyLimit:1200000,
     preHandler:[app.requirePlatformAuth,app.requirePlatformOwner],
     schema:{body:{type:'object',additionalProperties:false,required:['key','name','usage_scopes','image'],properties:{
       key:{type:'string',minLength:3,maxLength:80},name:{type:'string',minLength:2,maxLength:120},category:{type:'string',maxLength:80},usage_scopes:{type:'array',minItems:1,maxItems:5,items:{type:'string'}},tags:{type:'array',maxItems:20,items:{type:'string'}},
