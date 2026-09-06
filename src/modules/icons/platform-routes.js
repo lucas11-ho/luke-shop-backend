@@ -24,7 +24,7 @@ export async function platformIconRoutes(app){
   app.post('/v1/platform/icons',{
     preHandler:[app.requirePlatformAuth,app.requirePlatformOwner],
     schema:{body:{type:'object',additionalProperties:false,required:['key','name','library_pack','library_icon','usage_scopes'],properties:{
-      key:{type:'string',minLength:3,maxLength:80},name:{type:'string',minLength:2,maxLength:120},library_pack:{type:'string'},library_icon:{type:'string'},color_mode:{type:'string'},usage_scopes:{type:'array',minItems:1,maxItems:5,items:{type:'string'}},tags:{type:'array',maxItems:20,items:{type:'string'}},
+      key:{type:'string',minLength:3,maxLength:80},name:{type:'string',minLength:2,maxLength:120},library_pack:{type:'string'},library_icon:{type:'string'},color_mode:{type:'string'},usage_scopes:{type:'array',minItems:1,maxItems:6,items:{type:'string'}},tags:{type:'array',maxItems:20,items:{type:'string'}},
     }}},
   },async request=>app.db.transaction(async client=>{
     const icon=normalizeLibraryIconInput(request.body);
@@ -41,7 +41,7 @@ export async function platformIconRoutes(app){
     bodyLimit:1200000,
     preHandler:[app.requirePlatformAuth,app.requirePlatformOwner],
     schema:{body:{type:'object',additionalProperties:false,required:['key','name','usage_scopes','image'],properties:{
-      key:{type:'string',minLength:3,maxLength:80},name:{type:'string',minLength:2,maxLength:120},category:{type:'string',maxLength:80},usage_scopes:{type:'array',minItems:1,maxItems:5,items:{type:'string'}},tags:{type:'array',maxItems:20,items:{type:'string'}},
+      key:{type:'string',minLength:3,maxLength:80},name:{type:'string',minLength:2,maxLength:120},category:{type:'string',maxLength:80},usage_scopes:{type:'array',minItems:1,maxItems:6,items:{type:'string'}},tags:{type:'array',maxItems:20,items:{type:'string'}},
       image:imageSchema,light_image:imageSchema,dark_image:imageSchema,
     }}},
   },async request=>app.db.transaction(async client=>{
@@ -62,7 +62,7 @@ export async function platformIconRoutes(app){
 
   app.put('/v1/platform/icons/:iconKey/scopes',{
     preHandler:[app.requirePlatformAuth,app.requirePlatformOwner],
-    schema:{body:{type:'object',additionalProperties:false,required:['usage_scopes'],properties:{usage_scopes:{type:'array',minItems:1,maxItems:5,items:{type:'string'}}}}},
+    schema:{body:{type:'object',additionalProperties:false,required:['usage_scopes'],properties:{usage_scopes:{type:'array',minItems:1,maxItems:6,items:{type:'string'}}}}},
   },async request=>app.db.transaction(async client=>{
     const row=await findPlatformIcon(client,request.params.iconKey,{forUpdate:true});
     if(row.status==='RETIRED')throw errors.conflict('PLATFORM_ICON_RETIRED','Retired icons cannot be changed');
