@@ -1,0 +1,18 @@
+import fs from'node:fs';
+const read=p=>fs.readFileSync(p,'utf8');let n=0;const pass=(ok,msg)=>{if(!ok)throw new Error(`FAIL ${msg}`);n++;console.log(`PASS ${msg}`)};
+const migration=read('migrations/041_storefront_menu_shortcuts_v1.sql'),routes=read('src/modules/storefront/menu-shortcut-routes.js'),icons=read('src/modules/icons/service.js'),platform=read('src/modules/icons/platform-routes.js'),app=read('src/app.js');
+pass(migration.includes('CREATE TABLE storefront_menu_shortcuts'),'migration 041 adds a dedicated storefront menu shortcut domain');
+pass(migration.includes("destination IN ('HOME','EXPLORE','CART','ORDERS','PROFILE')"),'menu destinations are server-bounded to internal storefront routes');
+pass(migration.includes('icon_key text REFERENCES platform_icons(key) ON DELETE SET NULL'),'menu stores only a governed Platform icon reference');
+pass(icons.includes("'ACTION','MENU'"),'Platform icon registry exposes the dedicated MENU scope');
+pass((platform.match(/maxItems:6/g)||[]).length>=3,'Platform icon creation and scope mutation accept all six governed scopes');
+pass(routes.includes("app.get('/v1/merchant/menu-shortcuts'")&&routes.includes('PERMISSIONS.CUSTOMER_EXPERIENCE_READ'),'merchant menu reads are Customer Experience authorized');
+pass(routes.includes("app.post('/v1/merchant/menu-shortcuts'")&&routes.includes('PERMISSIONS.CUSTOMER_EXPERIENCE_MANAGE'),'merchant menu creation is management authorized');
+pass(routes.includes("scope:'MENU'")&&routes.includes("errorCode:'MENU_ICON_NOT_ALLOWED'"),'new shortcut icon selections require exact MENU Platform approval');
+pass(routes.includes("app.get('/v1/storefront/menu-shortcuts'")&&routes.includes('app.requireTenant'),'storefront shortcuts remain tenant/store scoped');
+pass(routes.includes('publicPlatformIconReference(row)')&&!routes.includes('request.body.url')&&!routes.includes('request.body.asset_path'),'storefront icon assets are Backend-owned references, never merchant URLs');
+pass(routes.includes("new Set(['HOME','EXPLORE','CART','ORDERS','PROFILE'])")&&!routes.includes('EXTERNAL'),'shortcut navigation cannot become an arbitrary external-link channel');
+pass(routes.includes("action:'storefront.menu_shortcut.create'")&&routes.includes("action:'storefront.menu_shortcut.update'")&&routes.includes("action:'storefront.menu_shortcut.delete'"),'shortcut mutations are audit logged');
+pass(app.includes("import { menuShortcutRoutes } from './modules/storefront/menu-shortcut-routes.js'")&&app.includes('await app.register(menuShortcutRoutes)'),'A9.2 routes are registered');
+pass(!routes.includes('dangerouslySetInnerHTML')&&!routes.includes('eval(')&&!routes.includes('new Function'),'A9.2 Backend executes no merchant icon or navigation source');
+console.log(`${n}/${n} Menu Icon Integration v1 A9.2 Backend checks passed`);

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { errors } from '../../core/errors.js';
 
-export const ICON_USAGE_SCOPES=Object.freeze(['NAVIGATION','TOPIC','CATEGORY','ACCOUNT','ACTION']);
+export const ICON_USAGE_SCOPES=Object.freeze(['NAVIGATION','TOPIC','CATEGORY','ACCOUNT','ACTION','MENU']);
 export const ICON_COLOR_MODES=Object.freeze(['THEME','DUOTONE','ORIGINAL']);
 export const ICON_LIBRARY_PACKS=Object.freeze(['PHOSPHOR']);
 export const ICON_SOURCE_TYPES=Object.freeze(['LIBRARY','CUSTOM_IMAGE']);

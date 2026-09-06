@@ -9,6 +9,7 @@ import { authPlugin } from './plugins/auth.js';
 import { customerServiceAuthPlugin } from './modules/integrations/customer-service/service-auth.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { storefrontRoutes } from './modules/storefront/routes.js';
+import { menuShortcutRoutes } from './modules/storefront/menu-shortcut-routes.js';
 import { customerAuthRoutes } from './modules/auth/customer-routes.js';
 import { merchantAuthRoutes } from './modules/auth/merchant-routes.js';
 import { merchantTenantRoutes } from './modules/merchant/tenant-routes.js';
@@ -144,6 +145,7 @@ export async function buildApp(config) {
   await app.register(publicAssetRoutes);
   await app.register(storefrontCatalogRoutes);
   await app.register(categoryIconRoutes);
+  await app.register(menuShortcutRoutes);
   await app.register(customerAuthRoutes);
   await app.register(merchantAuthRoutes);
   await app.register(merchantTenantRoutes);
