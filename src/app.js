@@ -17,6 +17,7 @@ import { merchantAccessRoutes } from './modules/merchant/access-routes.js';
 import { merchantStoreAccessRoutes } from './modules/merchant/store-access-routes.js';
 import { merchantCatalogRoutes } from './modules/catalog/merchant-routes.js';
 import { storefrontCatalogRoutes } from './modules/catalog/storefront-routes.js';
+import { categoryIconRoutes } from './modules/catalog/category-icon-routes.js';
 import { merchantInventoryRoutes } from './modules/inventory/merchant-routes.js';
 import { customerOrderRoutes } from './modules/orders/customer-routes.js';
 import { merchantOrderRoutes } from './modules/orders/merchant-routes.js';
@@ -142,6 +143,7 @@ export async function buildApp(config) {
   await app.register(storefrontRoutes);
   await app.register(publicAssetRoutes);
   await app.register(storefrontCatalogRoutes);
+  await app.register(categoryIconRoutes);
   await app.register(customerAuthRoutes);
   await app.register(merchantAuthRoutes);
   await app.register(merchantTenantRoutes);
