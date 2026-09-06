@@ -6,6 +6,7 @@ export const ICON_COLOR_MODES=Object.freeze(['THEME','DUOTONE','ORIGINAL']);
 export const ICON_LIBRARY_PACKS=Object.freeze(['PHOSPHOR']);
 export const ICON_SOURCE_TYPES=Object.freeze(['LIBRARY','CUSTOM_IMAGE']);
 export const CUSTOM_IMAGE_MIME_TYPES=Object.freeze(['image/png','image/webp']);
+export const CUSTOM_IMAGE_VARIANTS=Object.freeze(['DEFAULT','LIGHT','DARK']);
 export const CUSTOM_IMAGE_MAX_BYTES=262144;
 export const CUSTOM_IMAGE_MIN_DIMENSION=16;
 export const CUSTOM_IMAGE_MAX_DIMENSION=512;
@@ -20,8 +21,12 @@ const PHOSPHOR=new Set(PHOSPHOR_ICON_NAMES);
 const SCOPES=new Set(ICON_USAGE_SCOPES);
 const MODES=new Set(ICON_COLOR_MODES);
 const MIME_TYPES=new Set(CUSTOM_IMAGE_MIME_TYPES);
-const ICON_SELECT=`SELECT i.*,a.mime_type AS asset_mime,a.byte_size AS asset_size_bytes,a.width AS asset_width,a.height AS asset_height,a.sha256 AS asset_sha256
-  FROM platform_icons i LEFT JOIN platform_icon_assets a ON a.icon_id=i.id`;
+const VARIANTS=new Set(CUSTOM_IMAGE_VARIANTS);
+const ICON_SELECT=`SELECT i.*,
+  a.mime_type AS asset_mime,a.byte_size AS asset_size_bytes,a.width AS asset_width,a.height AS asset_height,a.sha256 AS asset_sha256,
+  EXISTS(SELECT 1 FROM platform_icon_assets al WHERE al.icon_id=i.id AND al.variant='LIGHT') AS has_light_asset,
+  EXISTS(SELECT 1 FROM platform_icon_assets ad WHERE ad.icon_id=i.id AND ad.variant='DARK') AS has_dark_asset
+  FROM platform_icons i LEFT JOIN platform_icon_assets a ON a.icon_id=i.id AND a.variant='DEFAULT'`;
 
 export const normalizeIconKey=value=>{
   const key=String(value||'').trim().toUpperCase();
@@ -41,7 +46,9 @@ function normalizeNameTags(raw={}){
   const name=String(raw.name||'').trim();
   if(name.length<2||name.length>120) throw errors.badRequest('ICON_NAME_INVALID','Icon name must be 2-120 characters');
   const tags=Array.isArray(raw.tags)?[...new Set(raw.tags.map(v=>String(v||'').trim().toLowerCase()).filter(Boolean))].slice(0,20):[];
-  return {name,tags};
+  const category=String(raw.category||'').trim();
+  if(category.length>80) throw errors.badRequest('ICON_CATEGORY_INVALID','Icon category must be 80 characters or fewer');
+  return {name,tags,category:category||null};
 }
 
 export function normalizeLibraryIconInput(raw={}){
@@ -51,9 +58,9 @@ export function normalizeLibraryIconInput(raw={}){
   if(!ICON_LIBRARY_PACKS.includes(libraryPack)) throw errors.badRequest('ICON_PACK_UNSUPPORTED','Unsupported icon library pack');
   if(libraryPack==='PHOSPHOR'&&!PHOSPHOR.has(libraryIcon)) throw errors.badRequest('ICON_GLYPH_UNSUPPORTED','Icon glyph is not supported by the current renderer');
   if(!MODES.has(colorMode)) throw errors.badRequest('ICON_COLOR_MODE_UNSUPPORTED','Unsupported icon color mode');
-  const {name,tags}=normalizeNameTags(raw);
+  const {name,tags,category}=normalizeNameTags(raw);
   return {
-    key:normalizeIconKey(raw.key),name,source_type:'LIBRARY',library_pack:libraryPack,library_icon:libraryIcon,
+    key:normalizeIconKey(raw.key),name,category,source_type:'LIBRARY',library_pack:libraryPack,library_icon:libraryIcon,
     color_mode:colorMode,usage_scopes:normalizeUsageScopes(raw.usage_scopes),tags,
   };
 }
@@ -85,9 +92,9 @@ function inspectWebp(bytes){
   throw errors.badRequest('ICON_IMAGE_INVALID','Unsupported WebP encoding');
 }
 
-export function normalizeCustomImageIconInput(raw={}){
-  const {name,tags}=normalizeNameTags(raw);
-  const image=raw.image&&typeof raw.image==='object'?raw.image:{};
+function normalizeImageAsset(raw,variant,{required=false}={}){
+  if(raw==null&&!required)return null;
+  const image=raw&&typeof raw==='object'?raw:{};
   const mime=String(image.mime_type||'').trim().toLowerCase();
   if(!MIME_TYPES.has(mime)) throw errors.badRequest('ICON_IMAGE_TYPE_UNSUPPORTED','Custom icons must be PNG or WebP');
   const encoded=String(image.data_base64||'').trim();
@@ -98,10 +105,15 @@ export function normalizeCustomImageIconInput(raw={}){
   if(dimensions.width<CUSTOM_IMAGE_MIN_DIMENSION||dimensions.height<CUSTOM_IMAGE_MIN_DIMENSION||dimensions.width>CUSTOM_IMAGE_MAX_DIMENSION||dimensions.height>CUSTOM_IMAGE_MAX_DIMENSION){
     throw errors.badRequest('ICON_IMAGE_DIMENSIONS_INVALID',`Custom icon dimensions must be ${CUSTOM_IMAGE_MIN_DIMENSION}-${CUSTOM_IMAGE_MAX_DIMENSION}px`);
   }
+  return {variant,mime_type:mime,body:bytes,byte_size:bytes.length,width:dimensions.width,height:dimensions.height,sha256:createHash('sha256').update(bytes).digest('hex')};
+}
+
+export function normalizeCustomImageIconInput(raw={}){
+  const {name,tags,category}=normalizeNameTags(raw);
+  const assets=[normalizeImageAsset(raw.image,'DEFAULT',{required:true}),normalizeImageAsset(raw.light_image,'LIGHT'),normalizeImageAsset(raw.dark_image,'DARK')].filter(Boolean);
   return {
-    key:normalizeIconKey(raw.key),name,source_type:'CUSTOM_IMAGE',library_pack:null,library_icon:null,color_mode:'ORIGINAL',
-    usage_scopes:normalizeUsageScopes(raw.usage_scopes),tags,
-    asset:{mime_type:mime,body:bytes,byte_size:bytes.length,width:dimensions.width,height:dimensions.height,sha256:createHash('sha256').update(bytes).digest('hex')},
+    key:normalizeIconKey(raw.key),name,category,source_type:'CUSTOM_IMAGE',library_pack:null,library_icon:null,color_mode:'ORIGINAL',
+    usage_scopes:normalizeUsageScopes(raw.usage_scopes),tags,assets,
   };
 }
 
@@ -109,11 +121,12 @@ export function publicPlatformIcon(row){
   if(!row)return null;
   const custom=row.source_type==='CUSTOM_IMAGE';
   return {
-    key:row.key,name:row.name,source_type:row.source_type,library_pack:row.library_pack,library_icon:row.library_icon,
+    key:row.key,name:row.name,category:row.category||null,source_type:row.source_type,library_pack:row.library_pack,library_icon:row.library_icon,
     color_mode:row.color_mode,usage_scopes:row.usage_scopes||[],tags:row.tags||[],status:row.status,
     asset_path:custom?`/v1/icon-assets/${encodeURIComponent(row.key)}`:null,
     asset_mime:custom?(row.asset_mime||null):null,asset_size_bytes:custom?(row.asset_size_bytes||null):null,
     asset_width:custom?(row.asset_width||null):null,asset_height:custom?(row.asset_height||null):null,asset_sha256:custom?(row.asset_sha256||null):null,
+    asset_variants:custom?{light:Boolean(row.has_light_asset),dark:Boolean(row.has_dark_asset)}:null,
     published_at:row.published_at||null,retired_at:row.retired_at||null,
   };
 }
@@ -151,9 +164,14 @@ export async function findPlatformIcon(db,key,{forUpdate=false}={}){
   return result.rows[0];
 }
 
-export async function getPlatformIconAsset(db,key){
-  const result=await db.query(`SELECT i.key,i.status,a.mime_type,a.byte_size,a.width,a.height,a.sha256,a.body
-    FROM platform_icons i JOIN platform_icon_assets a ON a.icon_id=i.id WHERE i.key=$1`,[normalizeIconKey(key)]);
+export async function getPlatformIconAsset(db,key,{variant='DEFAULT'}={}){
+  const normalized=String(variant||'DEFAULT').trim().toUpperCase();
+  if(!VARIANTS.has(normalized)) throw errors.badRequest('ICON_IMAGE_VARIANT_UNSUPPORTED','Unsupported icon image variant');
+  const result=await db.query(`SELECT i.key,i.status,a.variant,a.mime_type,a.byte_size,a.width,a.height,a.sha256,a.body
+    FROM platform_icons i JOIN LATERAL (
+      SELECT aa.* FROM platform_icon_assets aa WHERE aa.icon_id=i.id AND aa.variant IN ($2,'DEFAULT')
+      ORDER BY CASE WHEN aa.variant=$2 THEN 0 ELSE 1 END LIMIT 1
+    ) a ON true WHERE i.key=$1`,[normalizeIconKey(key),normalized]);
   if(!result.rowCount)throw errors.notFound('PLATFORM_ICON_ASSET_NOT_FOUND','Platform icon asset not found');
   return result.rows[0];
 }
