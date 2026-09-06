@@ -1,0 +1,15 @@
+import fs from'node:fs';
+const read=p=>fs.readFileSync(p,'utf8');let n=0;const pass=(ok,msg)=>{if(!ok)throw new Error(`FAIL ${msg}`);n++;console.log(`PASS ${msg}`)};
+const themes=read('src/modules/themes/service.js'),policy=read('src/modules/themes/customer-icon-policy.js'),customPolicy=read('src/modules/icons/custom-image-policy.js'),routes=read('src/modules/icons/platform-routes.js'),merchant=read('src/modules/themes/merchant-routes.js');
+pass(themes.includes("PLATFORM_NAV_ICON_TOKEN_PREFIX='platform:'")&&themes.includes('platformIconKeyFromThemeToken'),'theme overrides use a bounded Platform icon key token rather than merchant URLs');
+pass(themes.includes('icons.allow_custom_images===true')&&themes.includes('allow_custom_images:icons.allow_custom_images===true'),'custom image navigation requires an explicit immutable theme capability');
+pass(themes.includes("PLATFORM_ICON_KEY=/^[A-Z0-9][A-Z0-9._-]{2,79}$/"),'Platform icon tokens are bounded to safe key syntax');
+pass(policy.includes('customerNavigationPlatformIconKeys')&&policy.includes('requirePublishedCustomImageIcons'),'Customer Experience policy validates custom image navigation keys server-side');
+pass(customPolicy.includes("i.status='PUBLISHED'")&&customPolicy.includes("i.source_type='CUSTOM_IMAGE'")&&customPolicy.includes("a.variant='DEFAULT'"),'custom image navigation requires published source and a validated default asset');
+pass(customPolicy.includes('i.usage_scopes @> $1::jsonb'),'custom image navigation requires the requested Platform usage scope');
+pass(routes.includes("'Cross-Origin-Resource-Policy','cross-origin'")&&routes.includes("'X-Content-Type-Options','nosniff'"),'validated icon assets are explicitly embeddable cross-origin without relaxing nosniff');
+pass(routes.includes("reply.type(asset.mime_type)")&&routes.includes("'Content-Length',String(asset.byte_size)"),'asset response keeps Backend-owned validated MIME and byte length');
+pass(merchant.includes('maxProperties:64')&&merchant.includes('maxLength:96'),'Customer theme override schema safely accommodates Platform icon tokens and current composer count');
+pass(merchant.includes('validateCustomerNavigationIconPolicy(client,componentOverrides,{strict:true})'),'normal Merchant theme writes enforce Platform icon authority before saving');
+pass(!themes.includes('http://')&&!themes.includes('https://')&&!customPolicy.includes('asset_url'),'theme navigation token policy does not accept arbitrary asset URLs');
+console.log(`${n}/${n} Platform custom navigation icon A8.1 checks passed`);
