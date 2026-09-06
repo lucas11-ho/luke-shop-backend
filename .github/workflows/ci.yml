@@ -80,6 +80,8 @@ jobs:
           EOF
       - name: Migrate disposable PostgreSQL
         run: node --env-file=.env.ci src/db/migrate.js
+      - name: Platform Icon Library v1 A2 PostgreSQL lifecycle
+        run: node --env-file=.env.ci scripts/platform-icon-library-v1-a2-lifecycle-test.mjs
       - name: VIP cashback redemption lifecycle
         run: node --env-file=.env.ci scripts/vip-cashback-redemption-lifecycle-test.mjs
       - name: VIP recurring voucher/gift issuance lifecycle
