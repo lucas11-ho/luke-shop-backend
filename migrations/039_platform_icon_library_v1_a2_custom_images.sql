@@ -23,4 +23,4 @@ CREATE TABLE platform_icon_assets (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX platform_icon_assets_sha256_idx ON platform_icon_assets(sha256);
+CREATE INDEX platform_icon_assets_sha256_idx ON platform_icon_assets(sha256);
