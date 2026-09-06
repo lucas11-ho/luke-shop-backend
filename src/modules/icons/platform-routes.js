@@ -9,7 +9,10 @@ export async function platformIconRoutes(app){
     schema:{querystring:{type:'object',additionalProperties:false,properties:{variant:{type:'string',enum:['default','light','dark','DEFAULT','LIGHT','DARK']}}}},
   },async(request,reply)=>{
     const asset=await getPlatformIconAsset(app.db,request.params.iconKey,{variant:request.query?.variant||'DEFAULT'});
-    reply.type(asset.mime_type).header('X-Content-Type-Options','nosniff');
+    reply.type(asset.mime_type)
+      .header('X-Content-Type-Options','nosniff')
+      .header('Cross-Origin-Resource-Policy','cross-origin')
+      .header('Content-Length',String(asset.byte_size));
     reply.header('Cache-Control',asset.status==='DRAFT'?'no-store':'public,max-age=31536000,immutable');
     return reply.send(asset.body);
   });
