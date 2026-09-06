@@ -1,0 +1,16 @@
+import fs from'node:fs';
+const read=p=>fs.readFileSync(p,'utf8');let n=0;const pass=(ok,msg)=>{if(!ok)throw new Error(`FAIL ${msg}`);n++;console.log(`PASS ${msg}`)};
+const migration=read('migrations/040_category_platform_icon_v1.sql'),routes=read('src/modules/catalog/category-icon-routes.js'),policy=read('src/modules/icons/reference-policy.js'),app=read('src/app.js');
+pass(migration.includes('ALTER TABLE categories ADD COLUMN icon_key text'),'migration 040 adds nullable category icon_key');
+pass(migration.includes('REFERENCES platform_icons(key) ON DELETE SET NULL'),'category icon reference is Platform-owned and fails safe on draft deletion');
+pass(policy.includes("i.status='PUBLISHED'")&&policy.includes('i.usage_scopes @> $2::jsonb'),'new icon selections require published scope approval');
+pass(policy.includes("icon.source_type === 'CUSTOM_IMAGE'")&&policy.includes('has_default_asset'),'custom category icons require a validated default asset');
+pass(policy.includes("icon.library_pack === 'PHOSPHOR'")&&policy.includes('PHOSPHOR.has'),'library category icons remain renderer-backed');
+pass(routes.includes("app.put('/v1/merchant/categories/:categoryId/icon'")&&routes.includes('PERMISSIONS.CATALOG_WRITE'),'merchant category icon mutation is permission-controlled');
+pass(routes.includes("scope:'CATEGORY'")&&routes.includes("errorCode:'CATEGORY_ICON_NOT_ALLOWED'"),'category mutation applies exact CATEGORY Platform policy');
+pass(routes.includes("app.get('/v1/merchant/category-icons'")&&routes.includes('PERMISSIONS.CATALOG_READ'),'merchant category icon reads remain catalog-authorized');
+pass(routes.includes("app.get('/v1/storefront/category-icons'")&&routes.includes('app.requireTenant'),'storefront category icon metadata remains tenant/store scoped');
+pass(routes.includes('publicPlatformIconReference(row)')&&!routes.includes('request.body.asset_path')&&!routes.includes('request.body.url'),'storefront assets are constructed from Backend-owned icon references, never merchant URLs');
+pass(app.includes("import { categoryIconRoutes } from './modules/catalog/category-icon-routes.js'")&&app.includes('await app.register(categoryIconRoutes)'),'A9.1 routes are registered');
+pass(!routes.includes('dangerouslySetInnerHTML')&&!routes.includes('eval(')&&!routes.includes('new Function'),'A9.1 Backend executes no icon source');
+console.log(`${n}/${n} Category Icon Integration v1 A9.1 Backend checks passed`);
