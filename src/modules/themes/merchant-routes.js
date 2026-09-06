@@ -8,7 +8,7 @@ import { getStaffThemeSelection, normalizeThemeSelection, setStaffThemeSelection
 
 const storeHeader = (request) => request.headers['x-store-id'] || null;
 const selectionSchema={anyOf:[{type:'object',additionalProperties:false,required:['key','version'],properties:{key:{type:'string',minLength:2,maxLength:80},version:{type:'string',minLength:5,maxLength:80}}},{type:'null'}]};
-const componentOverridesSchema={type:'object',maxProperties:24,additionalProperties:{type:'string',minLength:1,maxLength:64}};
+const componentOverridesSchema={type:'object',maxProperties:64,additionalProperties:{type:'string',minLength:1,maxLength:96}};
 
 export async function merchantThemeRoutes(app) {
   app.get('/v1/merchant/customer-experience/theme-catalog', {
