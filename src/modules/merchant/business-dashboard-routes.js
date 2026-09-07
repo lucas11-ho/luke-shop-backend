@@ -71,7 +71,7 @@ async function inventorySection(db,{tenantId,storeId}){
 }
 
 async function deliverySection(db,{tenantId,storeId}){
-  const [dispatch,kitchen,cod]=await Promise.all([
+  const [dispatch,cod]=await Promise.all([
     db.query(`SELECT count(*) FILTER(WHERE d.status NOT IN ('DELIVERED','CANCELLED'))::int AS active_dispatches,
       count(*) FILTER(WHERE d.status='ASSIGNED')::int AS awaiting_acceptance,
       count(*) FILTER(WHERE d.status='OUT_FOR_DELIVERY')::int AS out_for_delivery,
@@ -80,9 +80,6 @@ async function deliverySection(db,{tenantId,storeId}){
       ) AS ready_unassigned,
       (SELECT count(*)::int FROM delivery_drivers dr WHERE dr.tenant_id=$1 AND dr.store_id=$2 AND dr.status='ACTIVE') AS active_drivers
       FROM delivery_dispatches d WHERE d.tenant_id=$1 AND d.store_id=$2`,[tenantId,storeId]),
-    db.query(`SELECT count(*) FILTER(WHERE status IN ('NEW','ACCEPTED','PREPARING'))::int AS waiting,
-      count(*) FILTER(WHERE status='READY')::int AS ready
-      FROM kitchen_jobs WHERE tenant_id=$1 AND store_id=$2`,[tenantId,storeId]),
     db.query(`SELECT count(*) FILTER(WHERE status='COLLECTED')::int AS driver_custody_count,
       COALESCE(sum(collected_amount) FILTER(WHERE status='COLLECTED'),0)::numeric AS driver_custody_amount,
       count(*) FILTER(WHERE status='REMITTED')::int AS reconciliation_count,
@@ -91,8 +88,15 @@ async function deliverySection(db,{tenantId,storeId}){
       max(currency) AS currency
       FROM delivery_cod_collections WHERE tenant_id=$1 AND store_id=$2`,[tenantId,storeId]),
   ]);
-  const d=dispatch.rows[0]||{},k=kitchen.rows[0]||{},c=cod.rows[0]||{};
-  return{summary:{active_dispatches:number(d.active_dispatches),awaiting_acceptance:number(d.awaiting_acceptance),out_for_delivery:number(d.out_for_delivery),ready_unassigned:number(d.ready_unassigned),active_drivers:number(d.active_drivers),kitchen_waiting:number(k.waiting),kitchen_ready:number(k.ready),cod_driver_custody_count:number(c.driver_custody_count),cod_driver_custody_amount:money(c.driver_custody_amount),cod_reconciliation_count:number(c.reconciliation_count),cod_reconciliation_amount:money(c.reconciliation_amount),cod_reconciled_count:number(c.reconciled_count),cod_currency:c.currency||null}};
+  const d=dispatch.rows[0]||{},c=cod.rows[0]||{};
+  return{summary:{active_dispatches:number(d.active_dispatches),awaiting_acceptance:number(d.awaiting_acceptance),out_for_delivery:number(d.out_for_delivery),ready_unassigned:number(d.ready_unassigned),active_drivers:number(d.active_drivers),cod_driver_custody_count:number(c.driver_custody_count),cod_driver_custody_amount:money(c.driver_custody_amount),cod_reconciliation_count:number(c.reconciliation_count),cod_reconciliation_amount:money(c.reconciliation_amount),cod_reconciled_count:number(c.reconciled_count),cod_currency:c.currency||null}};
+}
+
+async function kitchenSection(db,{tenantId,storeId}){
+  const result=await db.query(`SELECT count(*) FILTER(WHERE status IN ('NEW','ACCEPTED','PREPARING'))::int AS waiting,
+    count(*) FILTER(WHERE status='READY')::int AS ready
+    FROM kitchen_jobs WHERE tenant_id=$1 AND store_id=$2`,[tenantId,storeId]);
+  const row=result.rows[0]||{};return{summary:{waiting:number(row.waiting),ready:number(row.ready)}};
 }
 
 async function staffSection(db,{tenantId,storeId}){
@@ -110,6 +114,18 @@ async function staffSection(db,{tenantId,storeId}){
     ))`,[tenantId,storeId]);
   const row=result.rows[0]||{};
   return{summary:{active_staff:number(row.active_staff),inactive_staff:number(row.inactive_staff),drivers:number(row.drivers),kitchen:number(row.kitchen),cashiers:number(row.cashiers),dispatchers:number(row.dispatchers)}};
+}
+
+async function customerSection(db,{tenantId,storeId,start,end}){
+  const result=await db.query(`SELECT
+    (SELECT count(*)::int FROM customers c WHERE c.tenant_id=$1 AND c.created_at >= $3 AND c.created_at < $4) AS new_customers,
+    count(DISTINCT o.customer_id)::int AS ordering_customers,
+    count(DISTINCT o.customer_id) FILTER(WHERE EXISTS(
+      SELECT 1 FROM orders previous WHERE previous.tenant_id=o.tenant_id AND previous.customer_id=o.customer_id AND previous.created_at < $3
+    ))::int AS returning_customers
+    FROM orders o WHERE o.tenant_id=$1 AND o.store_id=$2 AND o.created_at >= $3 AND o.created_at < $4`,[tenantId,storeId,start,end]);
+  const row=result.rows[0]||{};
+  return{summary:{new_customers:number(row.new_customers),ordering_customers:number(row.ordering_customers),returning_customers:number(row.returning_customers)}};
 }
 
 async function catalogSection(db,{tenantId,storeId}){
@@ -131,15 +147,17 @@ export async function merchantBusinessDashboardRoutes(app){
   },async request=>{
     const store=await resolveStore(app.db,request.auth.tenantId,storeHeader(request),{requireActive:false});
     const period=await resolvePeriod(app.db,request.auth.tenantId,request.query?.period||'TODAY');
-    const context={tenant_id:request.auth.tenantId,store:{id:store.public_id,name:store.name,status:store.status},period};
-    const available={orders:has(request,PERMISSIONS.ORDERS_READ),payments:has(request,PERMISSIONS.PAYMENTS_READ),inventory:has(request,PERMISSIONS.INVENTORY_READ),delivery:has(request,PERMISSIONS.DELIVERY_READ),kitchen:has(request,PERMISSIONS.KITCHEN_READ),staff:has(request,PERMISSIONS.MERCHANT_STAFF_READ),loyalty:has(request,PERMISSIONS.LOYALTY_READ),catalog:has(request,PERMISSIONS.CATALOG_READ),promotions:has(request,PERMISSIONS.PROMOTIONS_READ)};
+    const context={store:{id:store.public_id,name:store.name,status:store.status},period};
+    const available={orders:has(request,PERMISSIONS.ORDERS_READ),payments:has(request,PERMISSIONS.PAYMENTS_READ),inventory:has(request,PERMISSIONS.INVENTORY_READ),delivery:has(request,PERMISSIONS.DELIVERY_READ),kitchen:has(request,PERMISSIONS.KITCHEN_READ),staff:has(request,PERMISSIONS.MERCHANT_STAFF_READ),customers:has(request,PERMISSIONS.CUSTOMERS_READ),loyalty:has(request,PERMISSIONS.LOYALTY_READ),catalog:has(request,PERMISSIONS.CATALOG_READ),promotions:has(request,PERMISSIONS.PROMOTIONS_READ)};
     const args={tenantId:request.auth.tenantId,storeId:store.id,start:period.start,end:period.end,currency:period.currency};
     const tasks=[];const add=(key,enabled,promiseFactory)=>{if(enabled)tasks.push([key,promiseFactory()]);};
     add('orders',available.orders,()=>orderSection(app.db,args));
     add('payments',available.payments,()=>paymentSection(app.db,args));
     add('inventory',available.inventory,()=>inventorySection(app.db,args));
     add('delivery',available.delivery,()=>deliverySection(app.db,args));
+    add('kitchen',available.kitchen,()=>kitchenSection(app.db,args));
     add('staff',available.staff,()=>staffSection(app.db,args));
+    add('customers',available.customers,()=>customerSection(app.db,args));
     add('catalog',available.catalog,()=>catalogSection(app.db,args));
     add('promotions',available.promotions,()=>promotionSection(app.db,args));
     add('loyalty',available.loyalty,()=>getVipAnalytics(app.db,{tenantId:args.tenantId,storeId:args.storeId,days:period.days}));
