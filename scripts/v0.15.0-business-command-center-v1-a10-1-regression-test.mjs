@@ -1,0 +1,15 @@
+import fs from'node:fs';import assert from'node:assert/strict';
+const read=path=>fs.readFileSync(path,'utf8').replace(/\r\n?/g,'\n');
+const routes=read('src/modules/merchant/business-dashboard-routes.js'),app=read('src/app.js');let n=0;const test=(name,fn)=>{fn();n++;console.log('PASS',name)};
+test('business dashboard route is registered',()=>{assert.match(app,/merchantBusinessDashboardRoutes/);assert.match(app,/app\.register\(merchantBusinessDashboardRoutes\)/)});
+test('dashboard is merchant authenticated and store resolved server-side',()=>{assert.match(routes,/preHandler:\[app\.requireMerchantAuth\]/);assert.match(routes,/resolveStore\(app\.db,request\.auth\.tenantId,storeHeader\(request\)/)});
+test('periods are explicitly bounded',()=>assert.match(routes,/enum:\['TODAY','7D','30D'\]/));
+test('dashboard period uses tenant timezone',()=>{assert.match(routes,/now\(\) AT TIME ZONE/);assert.match(routes,/timezone/);assert.match(routes,/currency/)});
+test('business sections are permission gated independently',()=>{for(const permission of ['ORDERS_READ','PAYMENTS_READ','INVENTORY_READ','DELIVERY_READ','KITCHEN_READ','MERCHANT_STAFF_READ','CUSTOMERS_READ','LOYALTY_READ','CATALOG_READ','PROMOTIONS_READ'])assert.ok(routes.includes(`PERMISSIONS.${permission}`),`missing ${permission}`)});
+test('kitchen data is isolated from delivery data',()=>{assert.match(routes,/function kitchenSection/);assert.match(routes,/add\('kitchen',available\.kitchen/);const delivery=routes.slice(routes.indexOf('async function deliverySection'),routes.indexOf('async function kitchenSection'));assert.doesNotMatch(delivery,/kitchen_jobs/)});
+test('all business queries retain tenant and store scope where required',()=>{for(const table of ['orders','order_payments','payment_refunds','inventory_items','delivery_dispatches','delivery_cod_collections','kitchen_jobs','products','promotions']){const position=routes.indexOf(`FROM ${table}`);assert.ok(position>=0,`missing ${table}`);const chunk=routes.slice(position,position+700);assert.match(chunk,/tenant_id=\$1/);if(table!=='payment_refunds'||true)assert.match(chunk,/store_id=\$2/)}});
+test('dashboard reports exact operational and finance signals',()=>{for(const marker of ['completed_sales','net_paid_volume','refund_attention','low_stock','out_of_stock','ready_unassigned','cod_driver_custody_amount','cod_reconciliation_amount','returning_customers'])assert.ok(routes.includes(marker),`missing ${marker}`)});
+test('dashboard uses partial failure isolation',()=>{assert.match(routes,/Promise\.allSettled/);assert.match(routes,/unavailable/)});
+test('response does not expose internal tenant database id',()=>{assert.doesNotMatch(routes,/context=\{tenant_id:/);assert.match(routes,/store:\{id:store\.public_id/)});
+test('dashboard is read-only',()=>{assert.doesNotMatch(routes,/app\.(post|put|patch|delete)\('\/v1\/merchant\/business-dashboard/)});
+console.log(`${n}/${n} Business Command Center v1 A10.1 source checks passed`);
