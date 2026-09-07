@@ -45,7 +45,7 @@ jobs:
       - name: Theme Controls v1 A5 button/form guard
         run: node scripts/v0.15.0-theme-controls-v1-a5-regression-test.mjs
       - name: Theme Product + Typography Composer v1 A6 source/security guard
-        run: node scripts/v0.15.0-theme-product-typography-composer-v1-a6-regression-test.mjs
+        run: node scripts/v0.15.0-theme-product-typography-v1-a6-regression-test.mjs
       - name: Theme Commerce Surfaces v1 A7 source/security guard
         run: node scripts/v0.15.0-theme-commerce-surfaces-v1-a7-regression-test.mjs
       - name: Platform Icon Library v1 A1 source/security guard
