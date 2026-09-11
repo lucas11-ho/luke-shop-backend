@@ -1,0 +1,23 @@
+import assert from'node:assert/strict';
+import fs from'node:fs';
+const read=p=>fs.readFileSync(p,'utf8').replace(/\r\n?/g,'\n');
+const migration=read('migrations/042_finance_reconciliation_center_v1.sql');
+const permissions=read('src/core/permissions.js');
+const route=read('src/modules/merchant/finance-routes.js');
+const cod=read('src/modules/delivery/cod-merchant-routes.js');
+const app=read('src/app.js');
+const tests=[];const test=(name,fn)=>tests.push([name,fn]);
+
+test('A10.2 is additive migration 042',()=>{assert.match(migration,/Finance & Reconciliation Center v1 A10\.2/);assert.match(migration,/finance\.read/);assert.match(migration,/r\.key='OWNER'/)});
+test('finance read is a first-class backend permission',()=>assert.match(permissions,/FINANCE_READ: 'finance\.read'/));
+test('Finance Center is registered in the Fastify app',()=>{assert.match(app,/merchantFinanceRoutes/);assert.match(app,/register\(merchantFinanceRoutes\)/)});
+test('Finance overview is read only and permission gated',()=>{assert.match(route,/app\.get\('\/v1\/merchant\/finance\/overview'/);assert.match(route,/requirePermission\(PERMISSIONS\.FINANCE_READ\)/);assert.doesNotMatch(route,/app\.(post|put|patch|delete)\('/)});
+test('finance reporting periods are bounded',()=>{for(const period of ['TODAY','7D','30D'])assert.ok(route.includes(`'${period}'`),`missing ${period}`);assert.match(route,/additionalProperties:false/)});
+test('current COD custody and reconciliation attention remain visible outside report period',()=>{assert.match(route,/c\.status IN \('COLLECTED','REMITTED'\)/);assert.match(route,/cod_driver_custody/);assert.match(route,/cod_awaiting_reconciliation/)});
+test('open refunds remain an attention queue',()=>{assert.match(route,/r\.status IN \('REQUESTED','PROCESSING'\)/);assert.match(route,/open_refunds/)});
+test('Finance Center exposes only existing guarded reconciliation authority',()=>{assert.match(route,/DELIVERY_MANAGE/);assert.match(route,/PAYMENTS_MANAGE/);assert.match(cod,/const reconcileGuard=app=>\[app\.requireMerchantAuth,app\.requirePermission\(PERMISSIONS\.DELIVERY_MANAGE\),app\.requirePermission\(PERMISSIONS\.PAYMENTS_MANAGE\)\]/);assert.match(cod,/confirmPayment/)});
+test('Finance Center never performs financial state mutation itself',()=>{assert.doesNotMatch(route,/confirmPayment|failPayment|UPDATE\s+order_payments|INSERT\s+INTO\s+delivery_cod|DELETE\s+FROM/i)});
+test('unsupported settlement fee adjustment and export capabilities fail closed',()=>{for(const marker of ['provider_settlement_ledger:false','provider_fee_ledger:false','manual_finance_adjustments:false','csv_export:false'])assert.ok(route.includes(marker),`missing ${marker}`)});
+test('finance response uses public store and business references',()=>{assert.match(route,/store:\{id:store\.public_id/);assert.match(route,/public_id AS id/);assert.doesNotMatch(route,/context:\{[^}]*tenant_id/)});
+test('finance formulas are explicit and refund-aware',()=>{assert.match(route,/gross_paid_volume/);assert.match(route,/net_paid_volume/);assert.match(route,/GREATEST\(amount-COALESCE\(refunded_amount,0\),0\)/);assert.match(route,/definitions:/)});
+let passed=0;for(const[name,fn]of tests){try{fn();passed++;console.log(`PASS ${name}`)}catch(error){console.error(`FAIL ${name}`);throw error}}console.log(`${passed}/${tests.length} Finance & Reconciliation Center v1 A10.2 source/security checks passed`);
