@@ -15,6 +15,7 @@ export const PERMISSIONS = Object.freeze({
   ORDERS_MANAGE: 'orders.manage',
   PAYMENTS_READ: 'payments.read',
   PAYMENTS_MANAGE: 'payments.manage',
+  FINANCE_READ: 'finance.read',
   DELIVERY_READ: 'delivery.read',
   DELIVERY_MANAGE: 'delivery.manage',
   KITCHEN_READ: 'kitchen.read',
