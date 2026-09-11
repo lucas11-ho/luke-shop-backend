@@ -1,0 +1,20 @@
+import assert from'node:assert/strict';
+import fs from'node:fs';
+const read=p=>fs.readFileSync(p,'utf8').replace(/\r\n?/g,'\n');
+const route=read('src/modules/merchant/access-overview-routes.js');
+const access=read('src/modules/merchant/access-routes.js');
+const stores=read('src/modules/merchant/store-access-routes.js');
+const operational=read('migrations/030_delivery_policies_kitchen_cashier_v1.sql');
+const app=read('src/app.js');
+const tests=[];const test=(name,fn)=>tests.push([name,fn]);
+
+test('A10.3 overview is registered as a read-only merchant route',()=>{assert.match(app,/merchantAccessOverviewRoutes/);assert.match(app,/register\(merchantAccessOverviewRoutes\)/);assert.match(route,/app\.get\('\/v1\/merchant\/access\/overview'/);assert.doesNotMatch(route,/app\.(post|put|patch|delete)\('/)});
+test('overview requires staff read and preserves granular capability gates',()=>{assert.match(route,/MERCHANT_STAFF_READ/);for(const marker of ['MERCHANT_STAFF_MANAGE','MERCHANT_ROLES_READ','MERCHANT_ROLES_MANAGE','MERCHANT_SESSIONS_MANAGE','STORES_READ','AUDIT_READ'])assert.ok(route.includes(marker),`missing ${marker}`)});
+test('overview remains aggregate and never leaks credentials or raw session/audit secrets',()=>{for(const forbidden of ['password_hash','refresh_token_hash','access_token','refresh_token','request_ip','request_id'])assert.ok(!route.includes(forbidden),`forbidden access overview field ${forbidden}`);assert.doesNotMatch(route,/SELECT\s+\*/i)});
+test('access activity is access-specific and available only with audit.read',()=>{assert.match(route,/auditVisible\?recentAccessActivity/);assert.match(route,/merchant\.staff\.%/);assert.match(route,/merchant\.role\.%/)});
+test('store scope posture comes from backend authoritative staff scope state',()=>{assert.match(route,/store_access_mode='ASSIGNED_STORES'/);assert.match(route,/store_access_mode='ALL_STORES'/);assert.match(stores,/updateStaffStoreScope/);assert.match(stores,/merchant\.staff\.store_access\.update/)});
+test('A10.3 reuses existing audited staff role session and store mutations',()=>{for(const marker of ['/v1/merchant/staff','reset-password','force-logout','/sessions','/roles'])assert.ok(access.includes(marker),`missing existing access contract ${marker}`);assert.doesNotMatch(route,/UPDATE\s+merchant_|INSERT\s+INTO\s+merchant_|DELETE\s+FROM\s+merchant_/i)});
+test('protected operational roles remain the existing Backend-governed system roles',()=>{for(const role of ['KITCHEN','CASHIER','DISPATCHER','DRIVER']){assert.ok(route.includes(`'${role}'`),`overview missing ${role}`);assert.match(operational,new RegExp(`'${role}'[^\n]*true`))}assert.match(operational,/DRIVER intentionally has no/)});
+test('last active owner and privilege-escalation guards remain authoritative',()=>{assert.match(access,/assertLastActiveOwnerPreserved/);assert.match(access,/assertCanManageRoles/);assert.match(access,/assertPermissionKeysGrantable/);assert.match(route,/active_owners/)});
+test('overview exposes management attention without client-side invented authority',()=>{for(const marker of ['active_without_roles','inactive_with_active_sessions','active_never_logged_in','assigned_store_scope_staff','active_sessions'])assert.ok(route.includes(marker),`missing ${marker}`);assert.match(route,/system_roles_protected:true/);assert.match(route,/last_active_owner_required:true/);assert.match(route,/store_scope_server_authoritative:true/)});
+let passed=0;for(const[name,fn]of tests){try{fn();passed++;console.log(`PASS ${name}`)}catch(error){console.error(`FAIL ${name}`);throw error}}console.log(`${passed}/${tests.length} Staff & Access Management Center v1 A10.3 source/security checks passed`);

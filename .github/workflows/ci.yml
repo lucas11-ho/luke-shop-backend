@@ -62,6 +62,8 @@ jobs:
         run: node scripts/v0.15.0-business-command-center-v1-a10-1-regression-test.mjs
       - name: Finance & Reconciliation Center v1 A10.2 source/security guard
         run: node scripts/v0.15.0-finance-reconciliation-center-v1-a10-2-regression-test.mjs
+      - name: Staff & Access Management Center v1 A10.3 source/security guard
+        run: node scripts/v0.15.0-staff-access-management-center-v1-a10-3-regression-test.mjs
       - name: VIP cashback redemption v1 source/security guard
         run: node scripts/v0.15.0-vip-cashback-redemption-v1-regression-test.mjs
       - name: VIP recurring voucher/gift issuance v1 source/security guard
@@ -102,6 +104,8 @@ jobs:
         run: node --env-file=.env.ci scripts/business-command-center-v1-a10-1-lifecycle-test.mjs
       - name: Finance & Reconciliation Center v1 A10.2 PostgreSQL lifecycle
         run: node --env-file=.env.ci scripts/finance-reconciliation-center-v1-a10-2-lifecycle-test.mjs
+      - name: Staff & Access Management Center v1 A10.3 PostgreSQL lifecycle
+        run: node --env-file=.env.ci scripts/staff-access-management-center-v1-a10-3-lifecycle-test.mjs
       - name: VIP cashback redemption lifecycle
         run: node --env-file=.env.ci scripts/vip-cashback-redemption-lifecycle-test.mjs
       - name: VIP recurring voucher/gift issuance lifecycle
