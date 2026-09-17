@@ -7,6 +7,8 @@ export function createDatabase(config) {
     connectionString: config.databaseUrl,
     max: config.dbPoolMax,
     connectionTimeoutMillis: config.dbConnectionTimeoutMs,
+    idleTimeoutMillis: config.dbIdleTimeoutMs,
+    maxLifetimeSeconds: config.dbMaxLifetimeSeconds,
     application_name: 'luke-shop-backend',
     options: `-c statement_timeout=${config.dbStatementTimeoutMs}`,
   });

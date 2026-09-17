@@ -46,9 +46,13 @@ export function loadConfig() {
     logLevel: process.env.LOG_LEVEL?.trim() || 'info',
     trustProxy: boolEnv('TRUST_PROXY', production),
     databaseUrl: required('DATABASE_URL'),
-    dbPoolMax: intEnv('DB_POOL_MAX', 20, { min: 2, max: 200 }),
+    // Render runs one small API instance. Keeping a modest pool limits idle
+    // Neon backends and burst amplification without reducing normal throughput.
+    dbPoolMax: intEnv('DB_POOL_MAX', 8, { min: 2, max: 50 }),
     dbConnectionTimeoutMs: intEnv('DB_CONNECTION_TIMEOUT_MS', 5000, { min: 250, max: 60000 }),
     dbStatementTimeoutMs: intEnv('DB_STATEMENT_TIMEOUT_MS', 15000, { min: 500, max: 120000 }),
+    dbIdleTimeoutMs: intEnv('DB_IDLE_TIMEOUT_MS', 10000, { min: 1000, max: 300000 }),
+    dbMaxLifetimeSeconds: intEnv('DB_MAX_LIFETIME_SECONDS', 300, { min: 30, max: 3600 }),
     jwtAccessSecret: production ? secret('JWT_ACCESS_SECRET') : required('JWT_ACCESS_SECRET'),
     jwtAccessTtlMinutes: intEnv('JWT_ACCESS_TTL_MINUTES', 15, { min: 5, max: 60 }),
     refreshTokenTtlDays: intEnv('REFRESH_TOKEN_TTL_DAYS', 30, { min: 1, max: 180 }),
