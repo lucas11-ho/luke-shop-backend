@@ -2,7 +2,9 @@ services:
   - type: web
     name: luke-shop-backend
     runtime: docker
-    healthCheckPath: /health/ready
+    # Liveness must not query PostgreSQL. Using /health/ready here would wake
+    # Neon on every infrastructure health probe and defeat scale-to-zero.
+    healthCheckPath: /health
     autoDeploy: false
     envVars:
       - key: NODE_ENV
