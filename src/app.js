@@ -59,6 +59,8 @@ import { platformIconRoutes } from './modules/icons/platform-routes.js';
 import { merchantIconRoutes } from './modules/icons/merchant-routes.js';
 import { merchantAssetRoutes, publicAssetRoutes } from './modules/assets/routes.js';
 import { productNatureRoutes } from './modules/product-nature/routes.js';
+import { botPilotIntegrationAuthPlugin } from './modules/integrations/bot-pilot/auth.js';
+import { botPilotIntegrationRoutes } from './modules/integrations/bot-pilot/routes.js';
 
 export async function buildApp(config) {
   const app = Fastify({
@@ -107,6 +109,7 @@ export async function buildApp(config) {
   authPlugin(app);
   customerServiceAuthPlugin(app);
   platformAuthPlugin(app);
+  botPilotIntegrationAuthPlugin(app);
 
   app.addHook('onSend', async (request, reply, payload) => {
     reply.header('x-request-id', request.id);
@@ -194,6 +197,7 @@ export async function buildApp(config) {
   await app.register(platformControlRoutes);
   await app.register(platformThemeRoutes);
   await app.register(platformIconRoutes);
+  await app.register(botPilotIntegrationRoutes);
 
   app.addHook('onClose', async () => app.db.close());
   return app;
