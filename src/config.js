@@ -66,6 +66,11 @@ export function loadConfig() {
     csServiceTokenTtlSeconds: intEnv('CS_SERVICE_TOKEN_TTL_SECONDS', 300, { min: 60, max: 900 }),
     csRequestMaxSkewSeconds: intEnv('CS_REQUEST_MAX_SKEW_SECONDS', 120, { min: 30, max: 600 }),
     csRequestNonceTtlSeconds: intEnv('CS_REQUEST_NONCE_TTL_SECONDS', 300, { min: 60, max: 1800 }),
+    // Optional until Bot Pilot Shop integration is activated. When configured,
+    // all provisioning/auth bridge requests must be HMAC signed.
+    botPilotSigningSecret: process.env.BOT_PILOT_SIGNING_SECRET?.trim() || '',
+    botPilotRequestMaxSkewSeconds: intEnv('BOT_PILOT_REQUEST_MAX_SKEW_SECONDS', 120, { min: 30, max: 600 }),
+    botPilotNonceTtlSeconds: intEnv('BOT_PILOT_NONCE_TTL_SECONDS', 300, { min: 60, max: 1800 }),
     corsOrigins,
     bodyLimitBytes: intEnv('BODY_LIMIT_BYTES', 1048576, { min: 65536, max: 10485760 }),
     rateLimitMax: intEnv('RATE_LIMIT_MAX', 300, { min: 10, max: 10000 }),
@@ -143,6 +148,9 @@ export function loadConfig() {
   }
   if (production && config.csContextSigningSecret === config.csServiceSigningSecret) {
     throw new Error('CS_CONTEXT_SIGNING_SECRET and CS_SERVICE_SIGNING_SECRET must be different in production');
+  }
+  if (config.botPilotSigningSecret && config.botPilotSigningSecret.length < 48) {
+    throw new Error('BOT_PILOT_SIGNING_SECRET must contain at least 48 characters when configured');
   }
 
   return Object.freeze(config);
