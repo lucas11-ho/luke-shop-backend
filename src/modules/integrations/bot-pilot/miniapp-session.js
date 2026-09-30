@@ -205,7 +205,9 @@ export async function createBotPilotMiniAppSession(
         actor_type: 'CUSTOMER',
         shop_public_id: link.shop_public_id,
         tenant_id: link.tenant_public_id,
+        tenant_slug: link.tenant_slug,
         store_id: link.store_public_id,
+        store_slug: link.store_slug,
         customer: publicCustomer(customer),
         tokens,
       };
@@ -274,7 +276,9 @@ export async function createBotPilotMiniAppSession(
         actor_type: 'MERCHANT',
         shop_public_id: link.shop_public_id,
         tenant_id: link.tenant_public_id,
+        tenant_slug: link.tenant_slug,
         store_id: link.store_public_id,
+        store_slug: link.store_slug,
         user: {
           id: merchant.public_id,
           email: merchant.email,
