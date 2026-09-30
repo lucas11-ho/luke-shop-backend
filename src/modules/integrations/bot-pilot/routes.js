@@ -267,49 +267,7 @@ export async function botPilotIntegrationRoutes(app) {
             type: 'string',
             minLength: 8,
             maxLength: 120,
-            pattern: '^bp_[A-Za-z0-9_-]+
-    preHandler: signed,
-    schema: {
-      body: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['status'],
-        properties: {
-          status: { type: 'string', enum: ['ACTIVE', 'SUSPENDED', 'DISABLED'] },
-          reason: { type: 'string', maxLength: 1000 },
-        },
-      },
-    },
-  }, async (request) => {
-    const childBotId = positiveInteger(request.params.childBotId, 'child_bot_id');
-    const current = await linkedShop(app.db, childBotId);
-    if (!current) {
-      throw errors.notFound('BOT_PILOT_SHOP_NOT_FOUND', 'Bot Pilot shop is not provisioned');
-    }
-    const status = request.body.status;
-
-    await app.db.transaction(async (client) => {
-      await client.query(
-        'UPDATE bot_pilot_shop_links SET status=$1,updated_at=now() WHERE child_bot_id=$2',
-        [status, childBotId],
-      );
-      await client.query(
-        'UPDATE tenants SET status=$1,updated_at=now() WHERE id=$2',
-        [status, current.tenant_id],
-      );
-      await audit(client, request, {
-        action: 'shop.status.sync',
-        childBotId,
-        shopPublicId: current.shop_public_id,
-        tenantId: current.tenant_id,
-        metadata: { status, reason: request.body.reason || null },
-      });
-    });
-
-    return { data: { shop: externalShop(await linkedShop(app.db, childBotId)) } };
-  });
-}
-,
+            pattern: '^bp_[A-Za-z0-9_-]+$',
           },
           actor_type: {
             type: 'string',
@@ -324,49 +282,7 @@ export async function botPilotIntegrationRoutes(app) {
                 type: 'string',
                 minLength: 5,
                 maxLength: 20,
-                pattern: '^[1-9][0-9]+
-    preHandler: signed,
-    schema: {
-      body: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['status'],
-        properties: {
-          status: { type: 'string', enum: ['ACTIVE', 'SUSPENDED', 'DISABLED'] },
-          reason: { type: 'string', maxLength: 1000 },
-        },
-      },
-    },
-  }, async (request) => {
-    const childBotId = positiveInteger(request.params.childBotId, 'child_bot_id');
-    const current = await linkedShop(app.db, childBotId);
-    if (!current) {
-      throw errors.notFound('BOT_PILOT_SHOP_NOT_FOUND', 'Bot Pilot shop is not provisioned');
-    }
-    const status = request.body.status;
-
-    await app.db.transaction(async (client) => {
-      await client.query(
-        'UPDATE bot_pilot_shop_links SET status=$1,updated_at=now() WHERE child_bot_id=$2',
-        [status, childBotId],
-      );
-      await client.query(
-        'UPDATE tenants SET status=$1,updated_at=now() WHERE id=$2',
-        [status, current.tenant_id],
-      );
-      await audit(client, request, {
-        action: 'shop.status.sync',
-        childBotId,
-        shopPublicId: current.shop_public_id,
-        tenantId: current.tenant_id,
-        metadata: { status, reason: request.body.reason || null },
-      });
-    });
-
-    return { data: { shop: externalShop(await linkedShop(app.db, childBotId)) } };
-  });
-}
-,
+                pattern: '^[1-9][0-9]+$',
               },
               first_name: { type: 'string', maxLength: 120 },
               last_name: { type: 'string', maxLength: 120 },
