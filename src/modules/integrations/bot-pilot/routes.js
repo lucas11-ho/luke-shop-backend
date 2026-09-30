@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { errors } from '../../../core/errors.js';
 import { provisionTenant } from '../../platform/provisioning.js';
+import { createBotPilotMiniAppSession } from './miniapp-session.js';
 
 function positiveInteger(value, field) {
   const number = Number(value);
@@ -245,6 +246,80 @@ export async function botPilotIntegrationRoutes(app) {
         tenant_id: result.tenantPublicId,
       },
     });
+  });
+
+  app.post('/v1/integrations/bot-pilot/miniapp/session', {
+    preHandler: signed,
+    config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+    schema: {
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'child_bot_id',
+          'shop_public_id',
+          'actor_type',
+          'telegram_user',
+        ],
+        properties: {
+          child_bot_id: { type: 'integer', minimum: 1 },
+          shop_public_id: {
+            type: 'string',
+            minLength: 8,
+            maxLength: 120,
+            pattern: '^bp_[A-Za-z0-9_-]+$',
+          },
+          actor_type: {
+            type: 'string',
+            enum: ['CUSTOMER', 'MERCHANT'],
+          },
+          telegram_user: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['id'],
+            properties: {
+              id: {
+                type: 'string',
+                minLength: 5,
+                maxLength: 20,
+                pattern: '^[1-9][0-9]+$',
+              },
+              first_name: { type: 'string', maxLength: 120 },
+              last_name: { type: 'string', maxLength: 120 },
+              username: { type: 'string', maxLength: 120 },
+              photo_url: { type: 'string', maxLength: 2000 },
+              language_code: { type: 'string', maxLength: 32 },
+            },
+          },
+        },
+      },
+    },
+  }, async (request) => {
+    const body = request.body || {};
+    const childBotId = positiveInteger(body.child_bot_id, 'child_bot_id');
+    const shopPublicId = String(body.shop_public_id || '').trim();
+
+    const link = await linkedShop(app.db, childBotId, shopPublicId);
+    if (
+      !link
+      || Number(link.child_bot_id) !== childBotId
+      || String(link.shop_public_id) !== shopPublicId
+    ) {
+      throw errors.notFound(
+        'BOT_PILOT_SHOP_NOT_FOUND',
+        'Bot Pilot shop binding was not found',
+      );
+    }
+
+    const session = await createBotPilotMiniAppSession(
+      app,
+      request,
+      link,
+      body.actor_type,
+      body.telegram_user,
+    );
+
+    return { data: { session } };
   });
 
   app.post('/v1/integrations/bot-pilot/shops/:childBotId/status', {
