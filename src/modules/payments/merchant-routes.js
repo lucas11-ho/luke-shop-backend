@@ -6,6 +6,7 @@ import { resolveStore } from '../catalog/service.js';
 import { confirmPayment, failPayment, paymentDetails } from './service.js';
 import { assertOrderTransition } from '../orders/service.js';
 import { processVipOrderRefund } from '../loyalty/execution.js';
+import { drainBotPilotEventOutbox, enqueueBotPilotShopEvent } from '../integrations/bot-pilot/events.js';
 
 const storeHeader=(request)=>request.headers['x-store-id']||null;
 
@@ -34,11 +35,69 @@ export async function merchantPaymentRoutes(app){
   app.get('/v1/merchant/orders/:orderRef/payment',{preHandler:[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.PAYMENTS_READ)]},async(request)=>({data:{payment:await paymentDetails(app.db,request.auth.tenantId,request.params.orderRef)}}));
 
   app.post('/v1/merchant/orders/:orderRef/payment/confirm',{preHandler:[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.PAYMENTS_MANAGE)],schema:{body:{type:'object',additionalProperties:false,properties:{provider_reference:{type:'string',maxLength:240}}}}},async(request)=>{
-    const store=await resolveStore(app.db,request.auth.tenantId,storeHeader(request),{requireActive:false});await app.db.transaction(async(client)=>{const found=await client.query(`SELECT * FROM orders WHERE tenant_id=$1 AND store_id=$2 AND (public_id=$3 OR order_number=$3) FOR UPDATE`,[request.auth.tenantId,store.id,request.params.orderRef]);if(!found.rowCount)throw errors.notFound('ORDER_NOT_FOUND','Order not found');const order=found.rows[0];await confirmPayment(client,{tenantId:request.auth.tenantId,storeId:store.id,order,providerReference:request.body?.provider_reference||null,requestId:request.id});await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'payment.confirm',targetType:'order',targetId:order.id,metadata:{order_number:order.order_number,provider_reference:request.body?.provider_reference||null},requestIp:request.ip,requestId:request.id});});return {data:{payment:await paymentDetails(app.db,request.auth.tenantId,request.params.orderRef)}};
+    const store=await resolveStore(app.db,request.auth.tenantId,storeHeader(request),{requireActive:false});
+    await app.db.transaction(async(client)=>{
+      const found=await client.query(`SELECT * FROM orders WHERE tenant_id=$1 AND store_id=$2 AND (public_id=$3 OR order_number=$3) FOR UPDATE`,[request.auth.tenantId,store.id,request.params.orderRef]);
+      if(!found.rowCount)throw errors.notFound('ORDER_NOT_FOUND','Order not found');
+      const order=found.rows[0];
+      const providerReference=request.body?.provider_reference||null;
+      await confirmPayment(client,{tenantId:request.auth.tenantId,storeId:store.id,order,providerReference,requestId:request.id});
+      await enqueueBotPilotShopEvent(client,{
+        tenantId:request.auth.tenantId,
+        storeId:store.id,
+        eventType:'PAYMENT_PAID',
+        topic:'payments',
+        idempotencyKey:`PAYMENT_PAID:${order.public_id}`,
+        payload:{
+          order_id:order.public_id,
+          order_number:order.order_number,
+          amount:Number(order.grand_total),
+          currency:order.currency,
+          status:'PAID',
+          payment_status:'PAID',
+          provider:'MANUAL',
+          provider_reference:providerReference,
+        },
+      });
+      await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'payment.confirm',targetType:'order',targetId:order.id,metadata:{order_number:order.order_number,provider_reference:providerReference},requestIp:request.ip,requestId:request.id});
+    });
+    void drainBotPilotEventOutbox(app,{limit:10}).catch((error)=>{
+      request.log.warn({err:error,order_ref:request.params.orderRef},'Immediate Bot Pilot manual payment event delivery failed');
+    });
+    return {data:{payment:await paymentDetails(app.db,request.auth.tenantId,request.params.orderRef)}};
   });
 
   app.post('/v1/merchant/orders/:orderRef/payment/fail',{preHandler:[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.PAYMENTS_MANAGE)],schema:{body:{type:'object',additionalProperties:false,properties:{failure_code:{type:'string',maxLength:120},failure_message:{type:'string',maxLength:1000}}}}},async(request)=>{
-    const store=await resolveStore(app.db,request.auth.tenantId,storeHeader(request),{requireActive:false});await app.db.transaction(async(client)=>{const found=await client.query(`SELECT * FROM orders WHERE tenant_id=$1 AND store_id=$2 AND (public_id=$3 OR order_number=$3) FOR UPDATE`,[request.auth.tenantId,store.id,request.params.orderRef]);if(!found.rowCount)throw errors.notFound('ORDER_NOT_FOUND','Order not found');const order=found.rows[0];await failPayment(client,{tenantId:request.auth.tenantId,storeId:store.id,order,failureCode:request.body?.failure_code||null,failureMessage:request.body?.failure_message||null,requestId:request.id});await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'payment.fail',targetType:'order',targetId:order.id,metadata:{order_number:order.order_number,failure_code:request.body?.failure_code||null},requestIp:request.ip,requestId:request.id});});return {data:{payment:await paymentDetails(app.db,request.auth.tenantId,request.params.orderRef)}};
+    const store=await resolveStore(app.db,request.auth.tenantId,storeHeader(request),{requireActive:false});
+    await app.db.transaction(async(client)=>{
+      const found=await client.query(`SELECT * FROM orders WHERE tenant_id=$1 AND store_id=$2 AND (public_id=$3 OR order_number=$3) FOR UPDATE`,[request.auth.tenantId,store.id,request.params.orderRef]);
+      if(!found.rowCount)throw errors.notFound('ORDER_NOT_FOUND','Order not found');
+      const order=found.rows[0];
+      const failureCode=request.body?.failure_code||null;
+      const failureMessage=request.body?.failure_message||null;
+      await failPayment(client,{tenantId:request.auth.tenantId,storeId:store.id,order,failureCode,failureMessage,requestId:request.id});
+      await enqueueBotPilotShopEvent(client,{
+        tenantId:request.auth.tenantId,
+        storeId:store.id,
+        eventType:'PAYMENT_FAILED',
+        topic:'payments',
+        idempotencyKey:`PAYMENT_FAILED:${order.public_id}`,
+        payload:{
+          order_id:order.public_id,
+          order_number:order.order_number,
+          amount:Number(order.grand_total),
+          currency:order.currency,
+          status:'FAILED',
+          payment_status:'FAILED',
+          failure_code:failureCode,
+        },
+      });
+      await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'MERCHANT',actorId:request.auth.actorId,action:'payment.fail',targetType:'order',targetId:order.id,metadata:{order_number:order.order_number,failure_code:failureCode},requestIp:request.ip,requestId:request.id});
+    });
+    void drainBotPilotEventOutbox(app,{limit:10}).catch((error)=>{
+      request.log.warn({err:error,order_ref:request.params.orderRef},'Immediate Bot Pilot failed-payment event delivery failed');
+    });
+    return {data:{payment:await paymentDetails(app.db,request.auth.tenantId,request.params.orderRef)}};
   });
 
   app.get('/v1/merchant/refunds',{preHandler:[app.requireMerchantAuth,app.requirePermission(PERMISSIONS.PAYMENTS_READ)],schema:{querystring:{type:'object',additionalProperties:false,properties:{status:{type:'string',enum:['REQUESTED','PROCESSING','SUCCEEDED','FAILED','CANCELLED']},limit:{type:'integer',minimum:1,maximum:200,default:50},offset:{type:'integer',minimum:0,maximum:1000000,default:0}}}}},async(request)=>{
