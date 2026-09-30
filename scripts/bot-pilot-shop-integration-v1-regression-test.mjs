@@ -4,6 +4,11 @@ const read = (path) =>
   fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 const migration = read('migrations/043_bot_pilot_shop_integration_v1.sql');
+const eventMigration = read('migrations/044_bot_pilot_event_outbox_v1.sql');
+const events = read('src/modules/integrations/bot-pilot/events.js');
+const customerOrders = read('src/modules/orders/customer-routes.js');
+const merchantPayments = read('src/modules/payments/merchant-routes.js');
+const paymentWebhooks = read('src/modules/payments/webhook-routes.js');
 const auth = read('src/modules/integrations/bot-pilot/auth.js');
 const routes = read('src/modules/integrations/bot-pilot/routes.js');
 const config = read('src/config.js');
@@ -27,6 +32,14 @@ const checks = [
   ['synthetic merchant credential is never returned', routes.includes('internalPassword') && !routes.includes('owner_password: internalPassword,\n          return')],
   ['status sync preserves data instead of deleting shop', routes.includes("app.post('/v1/integrations/bot-pilot/shops/:childBotId/status'") && routes.includes('UPDATE tenants SET status')],
   ['app registers integration auth and routes', app.includes('botPilotIntegrationAuthPlugin(app)') && app.includes('app.register(botPilotIntegrationRoutes)')],
+  ['event outbox migration is durable and idempotent', eventMigration.includes('CREATE TABLE IF NOT EXISTS bot_pilot_event_outbox') && eventMigration.includes('idempotency_key text NOT NULL UNIQUE') && eventMigration.includes("status IN ('PENDING','SENDING','DELIVERED','FAILED')")],
+  ['event callback is signed with existing Bot Pilot secret', events.includes("createHmac('sha256'") && events.includes("'x-botpilot-signature'") && events.includes('botPilotSigningSecret')],
+  ['event delivery retries and recovers stale sends', events.includes("FOR UPDATE SKIP LOCKED") && events.includes("status='SENDING'") && events.includes("interval '5 minutes'") && events.includes("next_attempt_at")],
+  ['app starts and stops the outbox drain loop', app.includes('startBotPilotEventOutboxDrain(app)') && app.includes('clearInterval(botPilotEventTimer)')],
+  ['order checkout enqueues Bot Pilot order events', customerOrders.includes("eventType:'ORDER_CREATED'") && customerOrders.includes("topic:'orders'")],
+  ['manual payment outcomes enqueue Bot Pilot events', merchantPayments.includes("eventType:'PAYMENT_PAID'") && merchantPayments.includes("eventType:'PAYMENT_FAILED'")],
+  ['TokenPay confirmation enqueues Bot Pilot payment event', paymentWebhooks.includes("eventType:'PAYMENT_PAID'") && paymentWebhooks.includes("provider:TOKENPAY_PROVIDER_KEY")],
+  ['config supports Bot Pilot event callback URL', config.includes('BOT_PILOT_EVENT_URL') && config.includes('botPilotEventUrl')],
   ['verify includes Bot Pilot regression', pkg.scripts.verify.includes('test:botpilot-shop-integration')],
 ];
 
