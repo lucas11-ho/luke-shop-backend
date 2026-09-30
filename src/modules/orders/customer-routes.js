@@ -7,6 +7,7 @@ import { createZeroValueRewardSettlement } from '../payments/zero-settlement.js'
 import { createOrderFulfillments, resolveDeliverySelection } from '../delivery/service.js';
 import { applyPromotionToTotals, resolvePromotion } from '../promotions/service.js';
 import { createMerchantNotification } from '../notifications/service.js';
+import { drainBotPilotEventOutbox, enqueueBotPilotShopEvent } from '../integrations/bot-pilot/events.js';
 import { expireDueVipRewards } from '../loyalty/execution.js';
 import { applyVipCashbackRedemption, restoreVipCashbackRedemptionForOrder } from '../loyalty/redemption.js';
 import {
@@ -170,12 +171,51 @@ export async function customerOrderRoutes(app) {
       if(promotionResult){const appliedDiscount=money(discountTotal+promotionTotals.deliveryDiscount);await client.query(`INSERT INTO promotion_redemptions(id,tenant_id,store_id,promotion_id,promotion_code_id,order_id,customer_id,discount_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,[uuid(),request.auth.tenantId,store.id,promotionResult.promotion.id,promotionResult.promotionCodeId||null,orderId,request.auth.actorId,appliedDiscount]);await client.query(`INSERT INTO order_adjustments(id,public_id,tenant_id,store_id,order_id,adjustment_type,source_id,code,description,amount) VALUES($1,$2,$3,$4,$5,'PROMOTION',$6,$7,$8,$9)`,[uuid(),publicId('adj'),request.auth.tenantId,store.id,orderId,promotionResult.promotion.id,promotionResult.code||null,promotionResult.promotion.name,-appliedDiscount]);}
       if(redemption)await client.query(`INSERT INTO order_adjustments(id,public_id,tenant_id,store_id,order_id,adjustment_type,source_id,code,description,amount) VALUES($1,$2,$3,$4,$5,'VIP_REDEMPTION',$6,'VIP_CASHBACK','VIP cashback redeemed',$7)`,[uuid(),publicId('adj'),request.auth.tenantId,store.id,orderId,redemption.internal_id,-redemption.amount]);
       await createMerchantNotification(client,{tenantId:request.auth.tenantId,storeId:store.id,type:'ORDER_CREATED',title:`New ${orderType.replace(/_/g,' ').toLowerCase()} order`,message:`${orderNumber} was placed for ${store.currency} ${grandTotal.toFixed(2)}`,orderId,customerId:request.auth.actorId,payload:{order_id:orderPublicId,order_number:orderNumber,order_type:orderType,grand_total:grandTotal,currency:store.currency}});
+      await enqueueBotPilotShopEvent(client,{
+        tenantId:request.auth.tenantId,
+        storeId:store.id,
+        eventType:'ORDER_CREATED',
+        topic:'orders',
+        idempotencyKey:`ORDER_CREATED:${orderPublicId}`,
+        payload:{
+          order_id:orderPublicId,
+          order_number:orderNumber,
+          order_type:orderType,
+          grand_total:grandTotal,
+          currency:store.currency,
+          status:fullyRewardPaid?'PAID':'PENDING_PAYMENT',
+          payment_status:fullyRewardPaid?'PAID':'PENDING',
+        },
+      });
+      if(fullyRewardPaid){
+        await enqueueBotPilotShopEvent(client,{
+          tenantId:request.auth.tenantId,
+          storeId:store.id,
+          eventType:'PAYMENT_PAID',
+          topic:'payments',
+          idempotencyKey:`PAYMENT_PAID:${orderPublicId}`,
+          payload:{
+            order_id:orderPublicId,
+            order_number:orderNumber,
+            amount:grandTotal,
+            currency:store.currency,
+            status:'PAID',
+            payment_status:'PAID',
+            provider:'VIP_CASHBACK',
+          },
+        });
+      }
       await client.query(`INSERT INTO order_status_history(tenant_id,store_id,order_id,from_status,to_status,reason,actor_type,actor_id,request_id) VALUES($1,$2,$3,NULL,$4,$5,'CUSTOMER',$6,$7)`,[request.auth.tenantId,store.id,orderId,fullyRewardPaid?'PAID':'PENDING_PAYMENT',fullyRewardPaid?'Checkout fully covered by VIP cashback':'Checkout created',request.auth.actorId,request.id]);
       await client.query(`UPDATE checkout_sessions SET status='COMPLETED',completed_at=now(),updated_at=now() WHERE id=$1`,[checkoutId]);
       await client.query(`UPDATE carts SET status='CHECKED_OUT',updated_at=now() WHERE id=$1`,[cart.id]);
       await writeAudit(client,{tenantId:request.auth.tenantId,actorType:'CUSTOMER',actorId:request.auth.actorId,action:'checkout.order.create',targetType:'order',targetId:orderId,metadata:{order_number:orderNumber,checkout_id:checkoutPublicId,subtotal,discount_total:discountTotal,delivery_total:deliveryTotal,payable_before_vip_redemption:payableBeforeRedemption,vip_cashback_redeemed:redemption?.amount||0,grand_total:grandTotal,fully_reward_paid:fullyRewardPaid,order_type:orderType,promotion_code:promotionResult?.code||null},requestIp:request.ip,requestId:request.id});
       return {existing:false,public_id:orderPublicId,order_number:orderNumber};
     });
+    if(!result.existing){
+      void drainBotPilotEventOutbox(app,{limit:10}).catch((error)=>{
+        request.log.warn({err:error,order_id:result.public_id},'Immediate Bot Pilot order event delivery failed');
+      });
+    }
     const [order,redemption]=await Promise.all([orderDetails(app.db,request.auth.tenantId,result.public_id,{customerId:request.auth.actorId}),app.db.query(`SELECT r.public_id AS id,r.amount,r.currency,r.status,r.created_at FROM vip_reward_redemptions r JOIN orders o ON o.id=r.order_id AND o.tenant_id=r.tenant_id AND o.store_id=r.store_id WHERE r.tenant_id=$1 AND o.public_id=$2 AND r.customer_id=$3`,[request.auth.tenantId,result.public_id,request.auth.actorId])]);
     return reply.code(result.existing?200:201).send({data:{order,vip_redemption:redemption.rows[0]||null,idempotent_replay:result.existing}});
   });
