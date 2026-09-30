@@ -3,6 +3,7 @@ import { errors } from '../../core/errors.js';
 import { confirmPayment } from './service.js';
 import { loadProviderCredentials } from './provider-credentials.js';
 import { decryptTokenPayResource, tokenPayNotificationAmount, tokenPayNotificationCurrency, tokenPayNotificationOutcome, verifyTokenPayMessage, TOKENPAY_PROVIDER_KEY } from './providers/tokenpay.js';
+import { drainBotPilotEventOutbox, enqueueBotPilotShopEvent } from '../integrations/bot-pilot/events.js';
 
 const upper=value=>String(value||'').trim().toUpperCase();
 const digest=value=>crypto.createHash('sha256').update(String(value||''),'utf8').digest('hex');
@@ -98,7 +99,27 @@ export async function paymentWebhookRoutes(app){
         return;
       }
       await confirmPayment(client,{tenantId:method.tenant_id,storeId:method.store_id,order,providerReference,requestId:request.id});
+      await enqueueBotPilotShopEvent(client,{
+        tenantId:method.tenant_id,
+        storeId:method.store_id,
+        eventType:'PAYMENT_PAID',
+        topic:'payments',
+        idempotencyKey:`PAYMENT_PAID:${order.public_id}`,
+        payload:{
+          order_id:order.public_id,
+          order_number:order.order_number,
+          amount:Number(payment.amount),
+          currency:payment.currency,
+          status:'PAID',
+          payment_status:'PAID',
+          provider:TOKENPAY_PROVIDER_KEY,
+          provider_reference:providerReference,
+        },
+      });
       await client.query(`UPDATE payment_events SET outcome='APPLIED' WHERE id=$1`,[paymentEventId]);
+    });
+    void drainBotPilotEventOutbox(app,{limit:10}).catch((error)=>{
+      request.log.warn({err:error,order_id:payment.public_id},'Immediate Bot Pilot payment event delivery failed');
     });
     return reply.type('text/plain').send('success');
   });
