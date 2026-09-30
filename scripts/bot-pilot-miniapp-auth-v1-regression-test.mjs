@@ -72,6 +72,11 @@ const checks = [
       && auth.includes('timingSafeEqual'),
   ],
   [
+    'Mini App sessions return tenant and store routing slugs',
+    session.includes('tenant_slug: link.tenant_slug')
+      && session.includes('store_slug: link.store_slug'),
+  ],
+  [
     'Luke Shop Mini App session service does not store or accept bot tokens',
     !session.includes('bot_token')
       && !routes.includes('telegram_bot_token'),
