@@ -11,6 +11,7 @@ const merchantPayments = read('src/modules/payments/merchant-routes.js');
 const paymentWebhooks = read('src/modules/payments/webhook-routes.js');
 const auth = read('src/modules/integrations/bot-pilot/auth.js');
 const routes = read('src/modules/integrations/bot-pilot/routes.js');
+const miniAppSession = read('src/modules/integrations/bot-pilot/miniapp-session.js');
 const config = read('src/config.js');
 const app = read('src/app.js');
 const pkg = JSON.parse(read('package.json'));
@@ -31,6 +32,12 @@ const checks = [
   ['provisioning is idempotent', routes.includes('created: false') && routes.includes('BOT_PILOT_SHOP_LINK_CONFLICT')],
   ['synthetic merchant credential is never returned', routes.includes('internalPassword') && !routes.includes('owner_password: internalPassword,\n          return')],
   ['status sync preserves data instead of deleting shop', routes.includes("app.post('/v1/integrations/bot-pilot/shops/:childBotId/status'") && routes.includes('UPDATE tenants SET status')],
+  ['Mini App session exchange is Bot Pilot signed', routes.includes("app.post('/v1/integrations/bot-pilot/miniapp/session'") && routes.includes('preHandler: signed')],
+  ['Mini App exchange requires exact child bot and shop binding', routes.includes("Number(link.child_bot_id) !== childBotId") && routes.includes("String(link.shop_public_id) !== shopPublicId")],
+  ['customer Mini App login reuses verified Telegram identity', miniAppSession.includes("provider: 'TELEGRAM'") && miniAppSession.includes('createCustomerSession(') && miniAppSession.includes('bot_pilot_mini_app: true')],
+  ['merchant Mini App login is owner-only', miniAppSession.includes("String(link.owner_telegram_user_id) !== telegram.id") && miniAppSession.includes('BOT_PILOT_MERCHANT_NOT_AUTHORIZED')],
+  ['merchant Mini App login reuses provisioned merchant and RBAC', miniAppSession.includes('link.merchant_user_id') && miniAppSession.includes('loadEffectiveStoreScope') && miniAppSession.includes("actorType: 'MERCHANT'")],
+  ['Luke Shop never requires a child bot token for Mini App auth', !miniAppSession.includes('bot_token') && !routes.includes('telegram_bot_token')],
   ['app registers integration auth and routes', app.includes('botPilotIntegrationAuthPlugin(app)') && app.includes('app.register(botPilotIntegrationRoutes)')],
   ['event outbox migration is durable and idempotent', eventMigration.includes('CREATE TABLE IF NOT EXISTS bot_pilot_event_outbox') && eventMigration.includes('idempotency_key text NOT NULL UNIQUE') && eventMigration.includes("status IN ('PENDING','SENDING','DELIVERED','FAILED')")],
   ['event callback is signed with existing Bot Pilot secret', events.includes("createHmac('sha256'") && events.includes("'x-botpilot-signature'") && events.includes('botPilotSigningSecret')],
