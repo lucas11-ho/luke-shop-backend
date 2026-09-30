@@ -69,6 +69,7 @@ export function loadConfig() {
     // Optional until Bot Pilot Shop integration is activated. When configured,
     // all provisioning/auth bridge requests must be HMAC signed.
     botPilotSigningSecret: process.env.BOT_PILOT_SIGNING_SECRET?.trim() || '',
+    botPilotEventUrl: process.env.BOT_PILOT_EVENT_URL?.trim() || '',
     botPilotRequestMaxSkewSeconds: intEnv('BOT_PILOT_REQUEST_MAX_SKEW_SECONDS', 120, { min: 30, max: 600 }),
     botPilotNonceTtlSeconds: intEnv('BOT_PILOT_NONCE_TTL_SECONDS', 300, { min: 60, max: 1800 }),
     corsOrigins,
@@ -151,6 +152,14 @@ export function loadConfig() {
   }
   if (config.botPilotSigningSecret && config.botPilotSigningSecret.length < 48) {
     throw new Error('BOT_PILOT_SIGNING_SECRET must contain at least 48 characters when configured');
+  }
+  if (config.botPilotEventUrl) {
+    let url;
+    try { url = new URL(config.botPilotEventUrl); }
+    catch { throw new Error('BOT_PILOT_EVENT_URL must be a valid absolute URL'); }
+    if (production && url.protocol !== 'https:') {
+      throw new Error('BOT_PILOT_EVENT_URL must use HTTPS in production');
+    }
   }
 
   return Object.freeze(config);

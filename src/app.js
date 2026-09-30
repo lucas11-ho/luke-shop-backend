@@ -61,6 +61,7 @@ import { merchantAssetRoutes, publicAssetRoutes } from './modules/assets/routes.
 import { productNatureRoutes } from './modules/product-nature/routes.js';
 import { botPilotIntegrationAuthPlugin } from './modules/integrations/bot-pilot/auth.js';
 import { botPilotIntegrationRoutes } from './modules/integrations/bot-pilot/routes.js';
+import { startBotPilotEventOutboxDrain } from './modules/integrations/bot-pilot/events.js';
 
 export async function buildApp(config) {
   const app = Fastify({
@@ -199,6 +200,10 @@ export async function buildApp(config) {
   await app.register(platformIconRoutes);
   await app.register(botPilotIntegrationRoutes);
 
-  app.addHook('onClose', async () => app.db.close());
+  const botPilotEventTimer = startBotPilotEventOutboxDrain(app);
+  app.addHook('onClose', async () => {
+    if (botPilotEventTimer) clearInterval(botPilotEventTimer);
+    await app.db.close();
+  });
   return app;
 }
